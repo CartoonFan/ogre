@@ -25,7 +25,7 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
 {
  public:
 
- Sample_Grass() : GRASS_WIDTH(40), GRASS_HEIGHT(40)
+ Sample_Grass()
     {
         mInfo["Title"] = "Grass";
         mInfo["Description"] = "Demonstrates how to use the StaticGeometry class to create 'baked' "
@@ -96,19 +96,6 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
      Real mIntensity;
  };
 
-#if OGRE_COMPILER == OGRE_COMPILER_MSVC
-#       pragma pack(push, 1)
-#endif
- struct GrassVertex
- {
-     float x, y, z;
-     float nx, ny, nz;
-     float u, v;
- };
-#if OGRE_COMPILER == OGRE_COMPILER_MSVC
-#       pragma pack(pop)
-#endif
-
  void setupContent()
  {
 #ifdef OGRE_BUILD_COMPONENT_RTSHADERSYSTEM
@@ -127,6 +114,7 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
      ground->setCastShadows(false);
      mSceneMgr->getRootSceneNode()->attachObject(ground);
 
+     //! [static_geom]
      // create our grass mesh, and create a grass entity from it
      createGrassMesh();
      Entity* grass = mSceneMgr->createEntity("Grass", "grass");
@@ -135,7 +123,9 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
      mField = mSceneMgr->createStaticGeometry("Field");
      mField->setRegionDimensions(Vector3(140, 140, 140));
      mField->setOrigin(Vector3(70, 70, 70));
+     //! [static_geom]
 
+     //! [grass_field]
      // add grass uniformly throughout the field, with some random variations
      for (int x = -280; x < 280; x += 20)
      {
@@ -150,6 +140,7 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
      }
 
      mField->build();  // build our static geometry (bake the grass into it)
+     //! [grass_field]
 
      // build tangent vectors for the ogre head mesh
      MeshPtr headMesh = MeshManager::getSingleton().load("ogrehead.mesh", ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
@@ -164,90 +155,55 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
 
      setupLighting();
 
-     mCameraMan->setStyle(CS_ORBIT);
+     mTrayMgr->createCheckBox(TL_TOPLEFT, "wind", "Wind")->setChecked(false, false);
      mTrayMgr->showCursor();
+
+     mCameraMan->setStyle(CS_ORBIT);
      mCameraMan->setYawPitchDist(Degree(0), Degree(25), 200);
  }
 
  void createGrassMesh()
  {
-     MeshPtr mesh = MeshManager::getSingleton().createManual("grass", ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+     const float width = 40;
+     const float height = 40;
 
-     // create a submesh with the grass material
-     SubMesh* sm = mesh->createSubMesh();
-     sm->setMaterialName("Examples/GrassBlades");
-     sm->useSharedVertices = false;
-     sm->vertexData = OGRE_NEW VertexData();
-     sm->vertexData->vertexStart = 0;
-     sm->vertexData->vertexCount = 12;
-     sm->indexData->indexCount = 18;
-
-#if defined(INCLUDE_RTSHADER_SYSTEM)
-        MaterialPtr grassMat = MaterialManager::getSingleton().getByName("Examples/GrassBlades");
-     grassMat->getTechnique(0)->setSchemeName(Ogre::RTShader::ShaderGenerator::DEFAULT_SCHEME_NAME);
-#endif
-
-     // specify a vertex format declaration for our mesh: 3 floats for position, 3 floats for normal, 2 floats for UV
-     VertexDeclaration* decl = sm->vertexData->vertexDeclaration;
-     decl->addElement(0, 0, VET_FLOAT3, VES_POSITION);
-     decl->addElement(0, sizeof(float) * 3, VET_FLOAT3, VES_NORMAL);
-     decl->addElement(0, sizeof(float) * 6, VET_FLOAT2, VES_TEXTURE_COORDINATES, 0);
-
-     // create a vertex buffer
-     HardwareVertexBufferSharedPtr vb = HardwareBufferManager::getSingleton().createVertexBuffer
-         (decl->getVertexSize(0), sm->vertexData->vertexCount, HardwareBuffer::HBU_STATIC_WRITE_ONLY);
-
-     GrassVertex* verts = (GrassVertex*)vb->lock(HardwareBuffer::HBL_DISCARD);  // start filling in vertex data
+     //! [mo]
+     ManualObject obj("GrassObject");
+     obj.begin("Examples/GrassBlades");
+     //! [mo]
+     // to apply wind in vertex shader:
+     // obj.begin("Examples/GrassBladesWaver");
 
      for (unsigned int i = 0; i < 3; i++)  // each grass mesh consists of 3 planes
      {
+         //! [grass_base]
          // planes intersect along the Y axis with 60 degrees between them
-         Real x = Math::Cos(Degree(i * 60)) * GRASS_WIDTH / 2;
-         Real z = Math::Sin(Degree(i * 60)) * GRASS_WIDTH / 2;
+         Vector3 vec = Quaternion(Degree(i * 60), Vector3::UNIT_Y) * Vector3(width / 2, 0, 0);
+         //! [grass_base]
 
-         for (unsigned int j = 0; j < 4; j++)  // each plane has 4 vertices
+         //! [mo_quad]
+         for (unsigned int j = 0; j < 4; j++) // each plane has 4 vertices
          {
-             GrassVertex& vert = verts[i * 4 + j];
-
-             vert.x = j < 2 ? -x : x;
-             vert.y = j % 2 ? 0 : GRASS_HEIGHT;
-             vert.z = j < 2 ? -z : z;
+             vec.y = j % 2 ? 0 : height;
+             obj.position(j < 2 ? Vector3(-1, 1, -1) * vec : vec);
+             obj.textureCoord(j < 2 ? 0 : 1, j % 2);
 
              // all normals point straight up
-             vert.nx = 0;
-             vert.ny = 1;
-             vert.nz = 0;
-
-             vert.u = j < 2 ? 0 : 1;
-             vert.v = j % 2;
+             obj.normal(0, 1, 0);
          }
+         //! [mo_quad]
+         //! [mo_index]
+         unsigned int off = i * 4;
+         // each plane consists of 2 triangles
+         obj.triangle(off + 0, off + 3, off + 1);
+         obj.triangle(off + 0, off + 2, off + 3);
+         //! [mo_index]
      }
 
-     vb->unlock();  // commit vertex changes
-
-     sm->vertexData->vertexBufferBinding->setBinding(0, vb);  // bind vertex buffer to our submesh
-
-     // create an index buffer
-     sm->indexData->indexBuffer = HardwareBufferManager::getSingleton().createIndexBuffer
-         (HardwareIndexBuffer::IT_16BIT, sm->indexData->indexCount, HardwareBuffer::HBU_STATIC_WRITE_ONLY);
-
-     // start filling in index data
-     Ogre::uint16* indices = (Ogre::uint16*)sm->indexData->indexBuffer->lock(HardwareBuffer::HBL_DISCARD);
-
-     for (unsigned int i = 0; i < 3; i++)  // each grass mesh consists of 3 planes
-     {
-         unsigned int off = i * 4;  // each plane consists of 2 triangles
-
-         *indices++ = 0 + off;
-         *indices++ = 3 + off;
-         *indices++ = 1 + off;
-
-         *indices++ = 0 + off;
-         *indices++ = 2 + off;
-         *indices++ = 3 + off;
-     }
-
-     sm->indexData->indexBuffer->unlock();  // commit index changes
+     //! [finish]
+     obj.end();
+     obj.convertToMesh("grass");
+     //! [finish]
  }
 
  void setupLighting()
@@ -322,8 +278,8 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
          // a little randomness
          xpos += reg.second->getCentre().x * 0.001;
          zpos += reg.second->getCentre().z * 0.001;
-         offset.x = Math::Sin(xpos) * 4;
-         offset.z = Math::Sin(zpos) * 4;
+         offset.x = std::sin(xpos) * 4;
+         offset.z = std::sin(zpos) * 4;
 
          for (auto lod : reg.second->getLODBuckets())
          {
@@ -336,6 +292,22 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
      }
  }
 
+ void checkBoxToggled(CheckBox* box)
+ {
+     auto mat = MaterialManager::getSingleton().getByName(box->isChecked() ? "Examples/GrassBladesWaver"
+                                                                           : "Examples/GrassBlades");
+     for (const auto& reg : mField->getRegions())
+     {
+         for (auto lod : reg.second->getLODBuckets())
+         {
+             for (const auto& mb : lod->getMaterialBuckets())
+             {
+                 mb.second->setMaterial(mat);
+             }
+         }
+     }
+ }
+
  void cleanupContent()
  {
      ControllerManager::getSingleton().destroyController(mLightController);
@@ -343,8 +315,6 @@ class _OgreSampleClassExport Sample_Grass : public SdkSample
      MeshManager::getSingleton().remove("grass", ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
  }
 
- const Real GRASS_WIDTH;
- const Real GRASS_HEIGHT;
  StaticGeometry* mField;
  AnimationState* mLightAnimState;
  Controller<Real>* mLightController;

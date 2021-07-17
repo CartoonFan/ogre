@@ -204,8 +204,12 @@ namespace Ogre {
         const ColourValue& getBorderColour(void) const { return mBorderColour; }
 
     protected:
-        UVWAddressingMode mAddressMode;
         ColourValue mBorderColour;
+        /// Texture anisotropy.
+        unsigned int mMaxAniso;
+        /// Mipmap bias (always float, not Real).
+        float mMipmapBias;
+        UVWAddressingMode mAddressMode;
         /// Texture filtering - minification.
         FilterOptions mMinFilter;
         /// Texture filtering - magnification.
@@ -213,10 +217,6 @@ namespace Ogre {
         /// Texture filtering - mipmapping.
         FilterOptions mMipFilter;
         CompareFunction mCompareFunc;
-        /// Texture anisotropy.
-        unsigned int mMaxAniso;
-        /// Mipmap bias (always float, not Real).
-        float mMipmapBias;
         bool mCompareEnabled : 1;
         bool mDirty : 1; // flag for derived classes to sync with implementation
     };
@@ -427,7 +427,7 @@ namespace Ogre {
 
         /** Returns the width and height of the texture in the given frame.
         */
-        std::pair< size_t, size_t > getTextureDimensions( unsigned int frame = 0 ) const;
+        std::pair<uint32, uint32> getTextureDimensions(unsigned int frame = 0) const;
 
         /** Changes the active frame in an animated or multi-image texture.
 
@@ -475,7 +475,7 @@ namespace Ogre {
         /** The type of unit to bind the texture settings to.
             @deprecated only D3D9 has separate sampler bindings. All other RenderSystems use unified pipelines.
          */
-        enum BindingType
+        enum BindingType : uint8
         {
             /** Regular fragment processing unit - the default. */
             BT_FRAGMENT = 0,
@@ -486,7 +486,7 @@ namespace Ogre {
         };
         /** Enum identifying the type of content this texture unit contains.
         */
-        enum ContentType
+        enum ContentType : uint8
         {
             /// The default option, this derives texture content from a texture name, loaded by
             /// ordinary means from a file or having been manually created with a given name.
@@ -525,10 +525,10 @@ namespace Ogre {
         ContentType getContentType(void) const;
 
         /// @deprecated use getTextureType()
-        OGRE_DEPRECATED bool isCubic(void) const;
+        OGRE_DEPRECATED bool isCubic(void) const { return getTextureType() == TEX_TYPE_CUBE_MAP; }
 
         /// @deprecated use getTextureType()
-        OGRE_DEPRECATED bool is3D(void) const;
+        OGRE_DEPRECATED bool is3D(void) const { return getTextureType() == TEX_TYPE_CUBE_MAP; }
 
         /** Returns the type of this texture.
         */
@@ -549,9 +549,6 @@ namespace Ogre {
 
         /// @deprecated use setDesiredFormat(PF_A8)
         OGRE_DEPRECATED void setIsAlpha(bool isAlpha);
-
-        /// @deprecated do not use
-        OGRE_DEPRECATED bool getIsAlpha(void) const;
 
         /// @copydoc Texture::getGamma
         float getGamma() const;
@@ -747,9 +744,6 @@ namespace Ogre {
             effect of darkening the textures - for this reason there are brightening operations
             like Ogre::LBX_MODULATE_X2. See the Ogre::LayerBlendOperation and Ogre::LayerBlendSource enumerated
             types for full details.
-        @note
-            Because of the limitations on some underlying APIs (Direct3D included)
-            the Ogre::LBS_TEXTURE argument can only be used as the first argument, not the second.
 
             The final 3 parameters are only required if you decide to pass values manually
             into the operation, i.e. you want one or more of the inputs to the colour calculation
@@ -1059,11 +1053,9 @@ namespace Ogre {
         const String& getName(void) const { return mName; }
 
         /// @deprecated use setName()
-        OGRE_DEPRECATED void setTextureNameAlias(const String& name);
+        OGRE_DEPRECATED void setTextureNameAlias(const String& name) { setName(name); }
         /// @deprecated use getName()
-        OGRE_DEPRECATED const String& getTextureNameAlias(void) const { return mTextureNameAlias;}
-        /// @deprecated use setTextureName()
-        OGRE_DEPRECATED bool applyTextureAliases(const AliasTextureNamePairList& aliasList, const bool apply = true);
+        OGRE_DEPRECATED const String& getTextureNameAlias(void) const { return getName();}
 
         /** Notify this object that its parent has changed. */
         void _notifyParent(Pass* parent);
@@ -1087,14 +1079,13 @@ namespace Ogre {
 
         /// return a sampler local to this TUS instead of the shared global one
         const SamplerPtr& _getLocalSampler();
-protected:
+private:
         // State
         /// The current animation frame.
         unsigned int mCurrentFrame;
 
         /// Duration of animation in seconds.
         Real mAnimDuration;
-        bool mCubic; /// Is this a series of 6 2D textures to make up a cube?
 
         unsigned int mTextureCoordSetIndex;
 
@@ -1103,10 +1094,7 @@ protected:
         SceneBlendFactor mColourBlendFallbackDest;
 
         LayerBlendModeEx mAlphaBlendMode;
-        mutable bool mTextureLoadFailed;
         Real mGamma;
-
-        mutable bool mRecalcTexMatrix;
         Real mUMod, mVMod;
         Real mUScale, mVScale;
         Radian mRotate;
@@ -1116,6 +1104,10 @@ protected:
         BindingType mBindingType;
         /// Content type of texture (normal loaded texture, auto-texture).
         ContentType mContentType;
+
+        mutable bool mTextureLoadFailed;
+        mutable bool mRecalcTexMatrix;
+
         /// The index of the referenced texture if referencing an MRT in a compositor.
         size_t mCompositorRefMrtIndex;
 
@@ -1126,7 +1118,6 @@ protected:
         mutable std::vector<TexturePtr> mFramePtrs; // must at least contain a single nullptr
         SamplerPtr mSampler;
         String mName;               ///< Optional name for the TUS.
-        String mTextureNameAlias;   ///< Optional alias for texture frames.
         EffectMap mEffects;
         /// The data that references the compositor.
         String mCompositorRefName;

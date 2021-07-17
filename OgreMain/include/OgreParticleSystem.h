@@ -31,10 +31,8 @@ THE SOFTWARE.
 #include "OgrePrerequisites.h"
 
 #include "OgreVector.h"
-#include "OgreParticleIterator.h"
 #include "OgreStringInterface.h"
 #include "OgreMovableObject.h"
-#include "OgreRadixSort.h"
 #include "OgreResourceGroupManager.h"
 #include "OgreHeaderPrefix.h"
 
@@ -65,85 +63,6 @@ namespace Ogre {
     class _OgreExport ParticleSystem : public StringInterface, public MovableObject
     {
     public:
-
-        /** Command object for quota (see ParamCommand).*/
-        class _OgrePrivate CmdQuota : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for emittedEmitterQuota (see ParamCommand).*/
-        class _OgrePrivate CmdEmittedEmitterQuota : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for material (see ParamCommand).*/
-        class _OgrePrivate CmdMaterial : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for cull_each (see ParamCommand).*/
-        class _OgrePrivate CmdCull : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for particle_width (see ParamCommand).*/
-        class _OgrePrivate CmdWidth : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for particle_height (see ParamCommand).*/
-        class _OgrePrivate CmdHeight : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for renderer (see ParamCommand).*/
-        class _OgrePrivate CmdRenderer : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for sorting (see ParamCommand).*/
-        class CmdSorted : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for local space (see ParamCommand).*/
-        class CmdLocalSpace : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for iteration interval(see ParamCommand).*/
-        class CmdIterationInterval : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-        /** Command object for nonvisible timeout (see ParamCommand).*/
-        class CmdNonvisibleTimeout : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-
         /// Default constructor required for STL creation in manager
         ParticleSystem();
         /** Creates a particle system with no emitters or affectors.
@@ -353,10 +272,7 @@ namespace Ogre {
             this is the easiest way to step through all the particles in a system and apply the
             changes the affector wants to make.
         */
-        const std::list<Particle*>& _getActiveParticles() { return mActiveParticles; }
-
-        /// @deprecated use _getActiveParticles()
-        OGRE_DEPRECATED ParticleIterator _getIterator(void);
+        const std::vector<Particle*>& _getActiveParticles() { return mActiveParticles; }
 
         /** Sets the name of the material to be used for this billboard set.
         */
@@ -464,11 +380,6 @@ namespace Ogre {
         static Real getDefaultNonVisibleUpdateTimeout(void) { return msDefaultNonvisibleTimeout; }
 
         const String& getMovableType(void) const override;
-
-        /// @deprecated do not use
-        OGRE_DEPRECATED virtual void _notifyParticleResized() {}
-        /// @deprecated do not use
-        OGRE_DEPRECATED virtual void _notifyParticleRotated() {}
 
         /** Sets the default dimensions of the particles in this set.
             @remarks
@@ -620,22 +531,7 @@ namespace Ogre {
 
         /// Override to return specific type flag
         uint32 getTypeFlags(void) const;
-    protected:
-
-        /// Command objects
-        static CmdCull msCullCmd;
-        static CmdHeight msHeightCmd;
-        static CmdMaterial msMaterialCmd;
-        static CmdQuota msQuotaCmd;
-        static CmdEmittedEmitterQuota msEmittedEmitterQuotaCmd;
-        static CmdWidth msWidthCmd;
-        static CmdRenderer msRendererCmd;
-        static CmdSorted msSortedCmd;
-        static CmdLocalSpace msLocalSpaceCmd;
-        static CmdIterationInterval msIterationIntervalCmd;
-        static CmdNonvisibleTimeout msNonvisibleTimeoutCmd;
-
-
+    private:
         AxisAlignedBox mAABB;
         Real mBoundingRadius;
         bool mBoundsAutoUpdate;
@@ -677,8 +573,6 @@ namespace Ogre {
         /// Used to control if the particle system should emit particles or not.
         bool mIsEmitting;
 
-        typedef std::list<Particle*> ActiveParticleList;
-        typedef std::list<Particle*> FreeParticleList;
         typedef std::vector<Particle*> ParticlePool;
 
         /** Sort by direction functor */
@@ -701,8 +595,6 @@ namespace Ogre {
             float operator()(Particle* p) const;
         };
 
-        static RadixSort<ActiveParticleList, Particle*, float> mRadixSorter;
-
         /** Active particle list.
             @remarks
                 This is a linked list of pointers to particles in the particle pool.
@@ -712,7 +604,7 @@ namespace Ogre {
                 Particle instances in the pool without construction & destruction 
                 which avoids memory thrashing.
         */
-        ActiveParticleList mActiveParticles;
+        ParticlePool mActiveParticles;
 
         /** Free particle queue.
             @remarks
@@ -723,7 +615,7 @@ namespace Ogre {
                 reduces, as they get released back to to the set they get added
                 back to the list.
         */
-        FreeParticleList mFreeParticles;
+        ParticlePool mFreeParticles;
 
         /** Pool of particle instances for use and reuse in the active particle list.
             @remarks
@@ -827,11 +719,6 @@ namespace Ogre {
 
         /** Internal method to configure the renderer. */
         void configureRenderer(void);
-
-        /// Internal method for creating ParticleVisualData instances for the pool
-        void createVisualParticles(size_t poolstart, size_t poolend);
-        /// Internal method for destroying ParticleVisualData instances for the pool
-        void destroyVisualParticles(size_t poolstart, size_t poolend);
 
         /** Create a pool of emitted emitters and assign them to the free emitter list.
             @remarks

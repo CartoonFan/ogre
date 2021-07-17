@@ -69,7 +69,7 @@ namespace Ogre {
         unsigned int fsaa;
         uint16      depthBufferPoolId;
 
-        ShadowTextureConfig() : width(512), height(512), format(PF_X8R8G8B8), fsaa(0), depthBufferPoolId(1) {}
+        ShadowTextureConfig() : width(512), height(512), format(PF_BYTE_RGBA), fsaa(0), depthBufferPoolId(1) {}
     };
 
     typedef std::vector<ShadowTextureConfig> ShadowTextureConfigList;
@@ -123,6 +123,87 @@ namespace Ogre {
             const Sphere& sphereBounds, const Camera* cam);
 
 
+    };
+
+    struct ShadowTextureListener
+    {
+        ShadowTextureListener() {}
+        virtual ~ShadowTextureListener() {}
+        /** Event raised after all shadow textures have been rendered into for
+            all queues / targets but before any other geometry has been rendered
+            (including main scene geometry and any additional shadow receiver
+            passes).
+        @remarks
+            This callback is useful for those that wish to perform some
+            additional processing on shadow textures before they are used to
+            render shadows. For example you could perform some filtering by
+            rendering the existing shadow textures into another alternative
+            shadow texture with a shader.
+        @note
+            This event will only be fired when texture shadows are in use.
+        @param numberOfShadowTextures The number of shadow textures in use
+        */
+        virtual void shadowTexturesUpdated(size_t numberOfShadowTextures)
+                    { (void)numberOfShadowTextures; }
+
+        /** This event occurs just before the view & projection matrices are
+            set for rendering into a shadow texture.
+        @remarks
+            You can use this event hook to perform some custom processing,
+            such as altering the camera being used for rendering the light's
+            view, including setting custom view & projection matrices if you
+            want to perform an advanced shadow technique.
+        @note
+            This event will only be fired when texture shadows are in use.
+        @param light Pointer to the light for which shadows are being rendered
+        @param camera Pointer to the camera being used to render
+        @param iteration For lights that use multiple shadow textures, the iteration number
+        */
+        virtual void shadowTextureCasterPreViewProj(Light* light,
+            Camera* camera, size_t iteration)
+                    { (void)light; (void)camera; (void)iteration; }
+
+        /** This event occurs just before the view & projection matrices are
+            set for re-rendering a shadow receiver.
+        @remarks
+            You can use this event hook to perform some custom processing,
+            such as altering the projection frustum being used for rendering
+            the shadow onto the receiver to perform an advanced shadow
+            technique.
+        @note
+            This event will only be fired when texture shadows are in use.
+        @param light Pointer to the light for which shadows are being rendered
+        @param frustum Pointer to the projection frustum being used to project
+            the shadow texture
+        */
+        virtual void shadowTextureReceiverPreViewProj(Light* light,
+            Frustum* frustum)
+                    { (void)light; (void)frustum; }
+
+        /** Hook to allow the listener to override the ordering of lights for
+            the entire frustum.
+
+            Whilst ordinarily lights are sorted per rendered object
+            (@ref MovableObject::queryLights), texture shadows adds another issue
+            in that, given there is a finite number of shadow textures, we must
+            choose which lights to render texture shadows from based on the entire
+            frustum. These lights should always be listed first in every objects
+            own list, followed by any other lights which will not cast texture
+            shadows (either because they have shadow casting off, or there aren't
+            enough shadow textures to service them).
+
+            This hook allows you to override the detailed ordering of the lights
+            per frustum. The default ordering is shadow casters first (which you
+            must also respect if you override this method), and ordered
+            by distance from the camera within those 2 groups. Obviously the closest
+            lights with shadow casting enabled will be listed first. Only lights
+            within the range of the frustum will be in the list.
+        @param lightList The list of lights within range of the frustum which you
+            may sort.
+        @return true if you sorted the list, false otherwise.
+        */
+        virtual bool sortLightsAffectingFrustum(LightList& lightList)
+                    { (void)lightList; return false; }
     };
 
     /** Manages the organisation and rendering of a 'scene': a collection of objects and potentially world geometry.
@@ -286,82 +367,6 @@ namespace Ogre {
                 IlluminationRenderStage irs, Viewport* v)
                         { (void)source; (void)irs; (void)v; }
 
-            /** Event raised after all shadow textures have been rendered into for 
-                all queues / targets but before any other geometry has been rendered
-                (including main scene geometry and any additional shadow receiver 
-                passes). 
-            @remarks
-                This callback is useful for those that wish to perform some 
-                additional processing on shadow textures before they are used to 
-                render shadows. For example you could perform some filtering by 
-                rendering the existing shadow textures into another alternative 
-                shadow texture with a shader.]
-            @note
-                This event will only be fired when texture shadows are in use.
-            @param numberOfShadowTextures The number of shadow textures in use
-            */
-            virtual void shadowTexturesUpdated(size_t numberOfShadowTextures)
-                        { (void)numberOfShadowTextures; }
-
-            /** This event occurs just before the view & projection matrices are
-                set for rendering into a shadow texture.
-            @remarks
-                You can use this event hook to perform some custom processing,
-                such as altering the camera being used for rendering the light's
-                view, including setting custom view & projection matrices if you
-                want to perform an advanced shadow technique.
-            @note
-                This event will only be fired when texture shadows are in use.
-            @param light Pointer to the light for which shadows are being rendered
-            @param camera Pointer to the camera being used to render
-            @param iteration For lights that use multiple shadow textures, the iteration number
-            */
-            virtual void shadowTextureCasterPreViewProj(Light* light, 
-                Camera* camera, size_t iteration)
-                        { (void)light; (void)camera; (void)iteration; }
-
-            /** This event occurs just before the view & projection matrices are
-                set for re-rendering a shadow receiver.
-            @remarks
-                You can use this event hook to perform some custom processing,
-                such as altering the projection frustum being used for rendering 
-                the shadow onto the receiver to perform an advanced shadow 
-                technique.
-            @note
-                This event will only be fired when texture shadows are in use.
-            @param light Pointer to the light for which shadows are being rendered
-            @param frustum Pointer to the projection frustum being used to project
-                the shadow texture
-            */
-            virtual void shadowTextureReceiverPreViewProj(Light* light, 
-                Frustum* frustum)
-                        { (void)light; (void)frustum; }
-
-            /** Hook to allow the listener to override the ordering of lights for
-                the entire frustum.
-
-                Whilst ordinarily lights are sorted per rendered object 
-                (@ref MovableObject::queryLights), texture shadows adds another issue
-                in that, given there is a finite number of shadow textures, we must
-                choose which lights to render texture shadows from based on the entire
-                frustum. These lights should always be listed first in every objects
-                own list, followed by any other lights which will not cast texture 
-                shadows (either because they have shadow casting off, or there aren't
-                enough shadow textures to service them).
-
-                This hook allows you to override the detailed ordering of the lights
-                per frustum. The default ordering is shadow casters first (which you 
-                must also respect if you override this method), and ordered
-                by distance from the camera within those 2 groups. Obviously the closest
-                lights with shadow casting enabled will be listed first. Only lights 
-                within the range of the frustum will be in the list.
-            @param lightList The list of lights within range of the frustum which you
-                may sort.
-            @return true if you sorted the list, false otherwise.
-            */
-            virtual bool sortLightsAffectingFrustum(LightList& lightList)
-                        { (void)lightList; return false; }
-
             /** Event notifying the listener of the SceneManager's destruction. */
             virtual void sceneManagerDestroyed(SceneManager* source)
                         { (void)source; }
@@ -372,7 +377,7 @@ namespace Ogre {
         */
         class _OgreExport SceneMgrQueuedRenderableVisitor : public QueuedRenderableVisitor
         {
-        protected:
+        private:
             /// Pass that was actually used at the grouping level
             const Pass* mUsedPass;
         public:
@@ -412,7 +417,6 @@ namespace Ogre {
 
         /// Queue of objects for rendering
         std::unique_ptr<RenderQueue> mRenderQueue;
-        bool mLastRenderQueueInvocationCustom;
 
         /// The rendering system to send the scene to
         RenderSystem *mDestRenderSystem;
@@ -648,14 +652,6 @@ namespace Ogre {
 
             Pass* mShadowTextureCustomCasterPass;
             Pass* mShadowTextureCustomReceiverPass;
-            String mShadowTextureCustomCasterVertexProgram;
-            String mShadowTextureCustomCasterFragmentProgram;
-            String mShadowTextureCustomReceiverVertexProgram;
-            String mShadowTextureCustomReceiverFragmentProgram;
-            GpuProgramParametersSharedPtr mShadowTextureCustomCasterVPParams;
-            GpuProgramParametersSharedPtr mShadowTextureCustomCasterFPParams;
-            GpuProgramParametersSharedPtr mShadowTextureCustomReceiverVPParams;
-            GpuProgramParametersSharedPtr mShadowTextureCustomReceiverFPParams;
 
             SamplerPtr mBorderSampler;
 
@@ -795,6 +791,9 @@ namespace Ogre {
             std::unique_ptr<SphereSceneQuery> mShadowCasterSphereQuery;
             std::unique_ptr<AxisAlignedBoxSceneQuery> mShadowCasterAABBQuery;
 
+            typedef std::vector<ShadowTextureListener*> ListenerList;
+            ListenerList mListeners;
+
             /// Inner class to use as callback for shadow caster scene query
             class _OgreExport ShadowCasterSceneQueryListener : public SceneQueryListener, public SceneMgtAlloc
             {
@@ -832,6 +831,13 @@ namespace Ogre {
                 could be affecting the frustum for a given light.
             */
             const ShadowCasterList& findShadowCastersForLight(const Light* light, const Camera* camera);
+            /// Internal method for firing the texture shadows updated event
+            void fireShadowTexturesUpdated(size_t numberOfShadowTextures);
+            /// Internal method for firing the pre caster texture shadows event
+            void fireShadowTexturesPreCaster(Light* light, Camera* camera, size_t iteration);
+            /// Internal method for firing the pre receiver texture shadows event
+            void fireShadowTexturesPreReceiver(Light* light, Frustum* f);
+            void sortLightsAffectingFrustum(LightList& lightList);
         } mShadowRenderer;
 
         /** Internal method to validate whether a Pass should be allowed to render.
@@ -889,13 +895,6 @@ namespace Ogre {
         /// Internal method for firing when rendering a single object.
         void fireRenderSingleObject(Renderable* rend, const Pass* pass, const AutoParamDataSource* source,
             const LightList* pLightList, bool suppressRenderStateChanges);
-
-        /// Internal method for firing the texture shadows updated event
-        void fireShadowTexturesUpdated(size_t numberOfShadowTextures);
-        /// Internal method for firing the pre caster texture shadows event
-        virtual void fireShadowTexturesPreCaster(Light* light, Camera* camera, size_t iteration);
-        /// Internal method for firing the pre receiver texture shadows event
-        virtual void fireShadowTexturesPreReceiver(Light* light, Frustum* f);
         /// Internal method for firing pre update scene graph event
         void firePreUpdateSceneGraph(Camera* camera);
         /// Internal method for firing post update scene graph event
@@ -914,8 +913,6 @@ namespace Ogre {
 
         /** Internal method for rendering all objects using the default queue sequence. */
         void renderVisibleObjectsDefaultSequence(void);
-        /** Internal method for rendering all objects using a custom queue sequence. */
-        void renderVisibleObjectsCustomSequence(RenderQueueInvocationSequence* s);
         /** Internal method for preparing the render queue for use with each render. */
         void prepareRenderQueue(void);
 
@@ -1025,10 +1022,6 @@ namespace Ogre {
         /// Visibility mask used to show / hide objects
         uint32 mVisibilityMask;
         bool mFindVisibleObjects;
-        /// Suppress render state changes?
-        bool mSuppressRenderStateChanges;
-        /// Suppress shadows?
-        bool mSuppressShadows;
 
         /** Render a group in the ordinary way */
         void renderBasicQueueGroupObjects(RenderQueueGroup* pGroup,
@@ -1237,8 +1230,24 @@ namespace Ogre {
         */
         virtual Light* createLight(const String& name);
 
+        /// @overload
+        Light* createLight(const String& name, Light::LightTypes type)
+        {
+            auto l = createLight(name);
+            l->setType(type);
+            return l;
+        }
+
         /** Creates a light with a generated name. */
         virtual Light* createLight();
+
+        /// @overload
+        Light* createLight(Light::LightTypes type)
+        {
+            auto l = createLight();
+            l->setType(type);
+            return l;
+        }
 
         /** Returns a pointer to the named Light which has previously been added to the scene.
         @note Throws an exception if the named instance does not exist
@@ -1407,7 +1416,7 @@ namespace Ogre {
         /** Returns if all bounding boxes of scene nodes are to be displayed */
         bool getShowBoundingBoxes() const;
 
-        DebugDrawer* getDebugDrawer() { return mDebugDrawer.get(); }
+        DebugDrawer* getDebugDrawer() const { return mDebugDrawer.get(); }
         /// @}
 
         /** Prefab shapes available without loading a model.
@@ -1699,32 +1708,6 @@ namespace Ogre {
         /// @{
         /** Sets the source of the 'world' geometry, i.e. the large, mainly static geometry
             making up the world e.g. rooms, landscape etc.
-            This function can be called before setWorldGeometry in a background thread, do to
-            some slow tasks (e.g. IO) that do not involve the backend render system.
-            @remarks
-                Depending on the type of SceneManager (subclasses will be specialised
-                for particular world geometry types) you have requested via the Root or
-                SceneManagerEnumerator classes, you can pass a filename to this method and it
-                will attempt to load the world-level geometry for use. If you try to load
-                an inappropriate type of world data an exception will be thrown. The default
-                SceneManager cannot handle any sort of world geometry and so will always
-                throw an exception. However subclasses like BspSceneManager can load
-                particular types of world geometry e.g. "q3dm1.bsp".
-
-        */
-        virtual void prepareWorldGeometry(const String& filename);
-
-        /** @overload
-            @param stream Data stream containing data to load
-            @param typeName String identifying the type of world geometry
-                contained in the stream - not required if this manager only 
-                supports one type of world geometry.
-        */
-        virtual void prepareWorldGeometry(DataStreamPtr& stream, 
-            const String& typeName = BLANKSTRING);
-
-        /** Sets the source of the 'world' geometry, i.e. the large, mainly static geometry
-            making up the world e.g. rooms, landscape etc.
             @remarks
                 Depending on the type of SceneManager (subclasses will be specialised
                 for particular world geometry types) you have requested via the Root or
@@ -1753,7 +1736,7 @@ namespace Ogre {
             custom world geometry that can take some time to load. They should
             return from this method a count of the number of stages of progress
             they can report on whilst loading. During real loading (setWorldGeometry),
-            they should call ResourceGroupManager::_notifyWorldGeometryProgress exactly
+            they should call ResourceGroupManager::_notifyCustomStage* exactly
             that number of times when loading the geometry for real.
         @note 
             The default is to return 0, ie to not report progress. 
@@ -1899,9 +1882,9 @@ namespace Ogre {
             @param camera Pointer to a camera from whose viewpoint the scene is to
                 be rendered.
             @param vp The target viewport
-            @param includeOverlays Whether or not overlay objects should be rendered
+            @param includeOverlays unused
         */
-        virtual void _renderScene(Camera* camera, Viewport* vp, bool includeOverlays);
+        virtual void _renderScene(Camera* camera, Viewport* vp, bool includeOverlays = true);
 
         /** Notifies the scene manager of its destination render system
             @remarks
@@ -1933,14 +1916,6 @@ namespace Ogre {
 
         /// @name Sky Rendering
         /// @{
-
-        /// @deprecated do not use
-        OGRE_DEPRECATED void _queueSkiesForRendering(Camera* cam)
-        {
-            mSkyPlane.postFindVisibleObjects(this, IRS_NONE, cam->getViewport());
-            mSkyBox.postFindVisibleObjects(this, IRS_NONE, cam->getViewport());
-            mSkyDome.postFindVisibleObjects(this, IRS_NONE, cam->getViewport());
-        }
         /** Enables / disables a 'sky plane' i.e. a plane at constant
             distance from the camera representing the sky.
             @remarks
@@ -2620,23 +2595,6 @@ namespace Ogre {
 
         /// @name Shadow Setup
         /// @{
-
-        /** Indicates to the SceneManager whether it should suppress the
-            active shadow rendering technique until told otherwise.
-        @remarks
-            This is a temporary alternative to setShadowTechnique to suppress
-            the rendering of shadows and forcing all processing down the
-            standard rendering path. This is intended for internal use only.
-        @param suppress If true, no shadow rendering will occur until this
-            method is called again with a parameter of false.
-        */
-        void _suppressShadows(bool suppress);
-
-        /** Are shadows suppressed?
-        @see _suppressShadows
-        */
-        bool _areShadowsSuppressed(void) const { return mSuppressShadows; }
-
         /** Sets the general shadow technique to be used in this scene.
         @remarks   
             There are multiple ways to generate shadows in a scene, and each has 
@@ -2939,7 +2897,7 @@ namespace Ogre {
         @note This is the simple form, see setShadowTextureConfig for the more 
             complex form.
         */
-        void setShadowTextureSettings(uint16 size, uint16 count, PixelFormat fmt = PF_X8R8G8B8,
+        void setShadowTextureSettings(uint16 size, uint16 count, PixelFormat fmt = PF_BYTE_RGBA,
                                       uint16 fsaa = 0, uint16 depthBufferPoolId = 1)
         {
             mShadowRenderer.setShadowTextureSettings(size, count, fmt, fsaa, depthBufferPoolId);
@@ -3107,6 +3065,13 @@ namespace Ogre {
         /** Remove a listener
         */
         void removeListener(Listener* s);
+
+        /** Add a listener which will get called back on shadow texture events.
+        */
+        void addShadowTextureListener(ShadowTextureListener* s);
+        /** Remove a listener
+        */
+        void removeShadowTextureListener(ShadowTextureListener* s);
 
         /// @name Static Geometry
         /// @{
@@ -3379,38 +3344,9 @@ namespace Ogre {
         void _injectRenderWithPass(Pass *pass, Renderable *rend, bool shadowDerivation = true,
             bool doLightIteration = false, const LightList* manualLightList = 0);
 
-        /** Indicates to the SceneManager whether it should suppress changing
-            the RenderSystem states when rendering objects.
-        @remarks
-            This method allows you to tell the SceneManager not to change any
-            RenderSystem state until you tell it to. This method is only 
-            intended for advanced use, don't use it if you're unsure of the 
-            effect. The only RenderSystems calls made are to set the world 
-            matrix for each object (note - view an projection matrices are NOT
-            SET - they are under your control) and to render the object; it is up to 
-            the caller to do everything else, including enabling any vertex / 
-            fragment programs and updating their parameter state, and binding
-            parameters to the RenderSystem.
-        @note
-            Calling this implicitly disables shadow processing since no shadows
-            can be rendered without changing state.
-        @param suppress If true, no RenderSystem state changes will be issued
-            until this method is called again with a parameter of false.
-        */
-        void _suppressRenderStateChanges(bool suppress);
-        
-        /** Are render state changes suppressed? 
-        @see _suppressRenderStateChanges
-        */
-        bool _areRenderStateChangesSuppressed(void) const
-        { return mSuppressRenderStateChanges; }
-
         /** Internal method for setting up the renderstate for a rendering pass.
             @param pass The Pass details to set.
-            @param evenIfSuppressed Sets the pass details even if render state
-                changes are suppressed; if you are using this to manually set state
-                when render state changes are suppressed, you should set this to 
-                true.
+            @param evenIfSuppressed unused
             @param shadowDerivation If false, disables the derivation of shadow
                 passes from original passes
             @return
@@ -3429,8 +3365,7 @@ namespace Ogre {
         */
         void _markGpuParamsDirty(uint16 mask);
 
-        /** Render the objects in a given queue group 
-        @remarks You should only call this from a RenderQueueInvocation implementation
+        /** Render the objects in a given queue group
         */
         void _renderQueueGroupObjects(RenderQueueGroup* group,
             QueuedRenderableCollection::OrganisationMode om);
@@ -3440,7 +3375,7 @@ namespace Ogre {
         @remarks
             You can use this method to insert your own implementation of the 
             QueuedRenderableVisitor interface, which receives calls as the queued
-            renderables are parsed in a given order (determined by RenderQueueInvocationSequence)
+            renderables are parsed in a given order
             and are sent to the renderer. If you provide your own implementation of
             this visitor, you are responsible for either calling the rendersystem, 
             or passing the calls on to the base class implementation.
@@ -3516,8 +3451,7 @@ namespace Ogre {
         DefaultIntersectionSceneQuery(SceneManager* creator);
         ~DefaultIntersectionSceneQuery();
 
-        /** See IntersectionSceneQuery. */
-        void execute(IntersectionSceneQueryListener* listener);
+        void execute(IntersectionSceneQueryListener* listener) override;
     };
 
     /** Default implementation of RaySceneQuery. */
@@ -3527,8 +3461,7 @@ namespace Ogre {
         DefaultRaySceneQuery(SceneManager* creator);
         ~DefaultRaySceneQuery();
 
-        /** See RayScenQuery. */
-        void execute(RaySceneQueryListener* listener);
+        void execute(RaySceneQueryListener* listener) override;
     };
     /** Default implementation of SphereSceneQuery. */
     class _OgreExport DefaultSphereSceneQuery : public SphereSceneQuery
@@ -3537,8 +3470,7 @@ namespace Ogre {
         DefaultSphereSceneQuery(SceneManager* creator);
         ~DefaultSphereSceneQuery();
 
-        /** See SceneQuery. */
-        void execute(SceneQueryListener* listener);
+        void execute(SceneQueryListener* listener) override;
     };
     /** Default implementation of PlaneBoundedVolumeListSceneQuery. */
     class _OgreExport DefaultPlaneBoundedVolumeListSceneQuery : public PlaneBoundedVolumeListSceneQuery
@@ -3547,8 +3479,7 @@ namespace Ogre {
         DefaultPlaneBoundedVolumeListSceneQuery(SceneManager* creator);
         ~DefaultPlaneBoundedVolumeListSceneQuery();
 
-        /** See SceneQuery. */
-        void execute(SceneQueryListener* listener);
+        void execute(SceneQueryListener* listener) override;
     };
     /** Default implementation of AxisAlignedBoxSceneQuery. */
     class _OgreExport DefaultAxisAlignedBoxSceneQuery : public AxisAlignedBoxSceneQuery
@@ -3557,22 +3488,7 @@ namespace Ogre {
         DefaultAxisAlignedBoxSceneQuery(SceneManager* creator);
         ~DefaultAxisAlignedBoxSceneQuery();
 
-        /** See RayScenQuery. */
-        void execute(SceneQueryListener* listener);
-    };
-    
-
-    /// Bitmask containing scene types
-    typedef uint16 SceneTypeMask;
-
-    /// @deprecated do not use
-    enum OGRE_DEPRECATED SceneType
-    {
-        ST_GENERIC = 1,
-        ST_EXTERIOR_CLOSE = 2,
-        ST_EXTERIOR_FAR = 4,
-        ST_EXTERIOR_REAL_FAR = 8,
-        ST_INTERIOR = 16
+        void execute(SceneQueryListener* listener) override;
     };
 
     /** Structure containing information about a scene manager. */

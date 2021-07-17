@@ -52,7 +52,6 @@ namespace Ogre
 
         bool mInitialized;
         HardwareBufferManager   *mHardwareBufferManager;
-        GpuProgramManager      *mShaderManager;
         MetalProgramFactory         *mMetalProgramFactory;
 
         bool mStencilEnabled;
@@ -114,13 +113,7 @@ namespace Ogre
 
         virtual DepthBuffer* _createDepthBufferFor( RenderTarget *renderTarget);
 
-        void setStencilCheckEnabled(bool enabled);
-        void setStencilBufferParams(CompareFunction func = CMPF_ALWAYS_PASS, uint32 refValue = 0,
-                                    uint32 compareMask = 0xFFFFFFFF, uint32 writeMask = 0xFFFFFFFF,
-                                    StencilOperation stencilFailOp = SOP_KEEP,
-                                    StencilOperation depthFailOp = SOP_KEEP,
-                                    StencilOperation passOp = SOP_KEEP, bool twoSidedOperation = false,
-                                    bool readBackAsTexture = false);
+        void setStencilState(const StencilState& state) override;
 
         /// See VaoManager::waitForTailFrameToFinish
         virtual void _waitForTailFrameToFinish(void);
@@ -153,7 +146,7 @@ namespace Ogre
             const GpuProgramParametersPtr& params, uint16 variabilityMask);
         virtual void clearFrameBuffer(unsigned int buffers,
             const ColourValue& colour = ColourValue::Black,
-            Real depth = 1.0f, unsigned short stencil = 0);
+            float depth = 1.0f, unsigned short stencil = 0);
         virtual void discardFrameBuffer( unsigned int buffers );
 
         virtual Real getMinimumDepthInputValue(void);

@@ -194,7 +194,7 @@ namespace {
     }
     //---------------------------------------------------------------------
     void DDSCodec::encodeToFile(const MemoryDataStreamPtr& input, const String& outFileName,
-                                const Codec::CodecDataPtr& pData) const
+                                const CodecDataPtr& pData) const
     {
         // Unwrap codecDataPtr - data is cleaned by calling function
         ImageData* imgData = static_cast<ImageData* >(pData.get());  
@@ -741,7 +741,7 @@ namespace {
             pCol[i].a = derivedAlphas[dw & 0x7];
     }
     //---------------------------------------------------------------------
-    Codec::DecodeResult DDSCodec::decode(const DataStreamPtr& stream) const
+    ImageCodec::DecodeResult DDSCodec::decode(const DataStreamPtr& stream) const
     {
         // Read 4 character code
         uint32 fileType;
@@ -779,7 +779,7 @@ namespace {
         imgData->depth = 1; // (deal with volume later)
         imgData->width = header.width;
         imgData->height = header.height;
-        size_t numFaces = 1; // assume one face until we know otherwise
+        uint32 numFaces = 1; // assume one face until we know otherwise
 
         if (header.caps.caps1 & DDSCAPS_MIPMAP)
         {
@@ -835,9 +835,7 @@ namespace {
         if (PixelUtil::isCompressed(sourceFormat))
         {
             if (Root::getSingleton().getRenderSystem() == NULL ||
-                !Root::getSingleton().getRenderSystem()->getCapabilities()->hasCapability(RSC_TEXTURE_COMPRESSION_DXT)
-                || (!Root::getSingleton().getRenderSystem()->getCapabilities()->hasCapability(RSC_AUTOMIPMAP_COMPRESSED)
-                && !imgData->num_mipmaps))
+                !Root::getSingleton().getRenderSystem()->getCapabilities()->hasCapability(RSC_TEXTURE_COMPRESSION_DXT))
             {
                 // We'll need to decompress
                 decompressDXT = true;

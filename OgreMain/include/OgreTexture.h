@@ -90,7 +90,7 @@ namespace Ogre {
 
     /** Enum identifying the texture type
     */
-    enum TextureType
+    enum TextureType : uint8
     {
         /// 1D texture, used in combination with 1D texture coordinates
         TEX_TYPE_1D = 1,
@@ -103,10 +103,8 @@ namespace Ogre {
         TEX_TYPE_CUBE_MAP = 4,
         /// 2D texture array
         TEX_TYPE_2D_ARRAY = 5,
-        /// @deprecated do not use. Not support by any of the current rendersystems.
-        TEX_TYPE_2D_RECT = 6,
         /// GLES2 only OES texture type
-        TEX_TYPE_EXTERNAL_OES = 7
+        TEX_TYPE_EXTERNAL_OES = 6
     };
 
     /** Enum identifying special mipmap numbers
@@ -379,13 +377,10 @@ namespace Ogre {
         /// @deprecated use setFormat(PF_A8)
         OGRE_DEPRECATED void setTreatLuminanceAsAlpha(bool asAlpha);
 
-        /// @deprecated do not use
-        OGRE_DEPRECATED bool getTreatLuminanceAsAlpha(void) const;
-
         /** Return the number of faces this texture has. This will be 6 for a cubemap
             texture and 1 for a 1D, 2D or 3D one.
         */
-        size_t getNumFaces() const;
+        uint32 getNumFaces() const;
 
         /** Return hardware pixel buffer for a surface. This buffer can then
             be used to copy data from and to a particular level of the texture.
@@ -455,13 +450,10 @@ namespace Ogre {
 
         uint32 mNumRequestedMipmaps;
         uint32 mNumMipmaps;
-        bool mMipmapsHardwareGenerated;
-        float mGamma;
-        bool mHwGamma;
-        uint mFSAA;
-        String mFSAAHint;
 
-        TextureType mTextureType;
+        float mGamma;
+        uint mFSAA;
+
         PixelFormat mFormat;
         int mUsage; /// Bit field, so this can't be TextureUsage
 
@@ -471,12 +463,15 @@ namespace Ogre {
         PixelFormat mDesiredFormat;
         unsigned short mDesiredIntegerBitDepth;
         unsigned short mDesiredFloatBitDepth;
-        bool mTreatLuminanceAsAlpha;
 
+        bool mTreatLuminanceAsAlpha;
         bool mInternalResourcesCreated;
+        bool mMipmapsHardwareGenerated;
+        bool mHwGamma;
 
         /// vector of images that should be loaded (cubemap/ texture array)
         std::vector<String> mLayerNames;
+        String mFSAAHint;
 
         /** Vector of images that were pulled from disk by
             prepareLoad but have yet to be pushed into texture memory
@@ -488,6 +483,8 @@ namespace Ogre {
         /// Vector of pointers to subsurfaces
         typedef std::vector<HardwarePixelBufferSharedPtr> SurfaceList;
         SurfaceList mSurfaceList;
+
+        TextureType mTextureType;
 
         void readImage(LoadedImages& imgs, const String& name, const String& ext, bool haveNPOT);
 

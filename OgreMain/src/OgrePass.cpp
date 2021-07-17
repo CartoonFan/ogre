@@ -119,7 +119,6 @@ namespace Ogre {
     Pass::Pass(Technique* parent, unsigned short index)
         : mParent(parent)
         , mHash(0)
-        , mIndex(index)
         , mAmbient(ColourValue::White)
         , mDiffuse(ColourValue::White)
         , mSpecular(ColourValue::Black)
@@ -145,31 +144,32 @@ namespace Ogre {
         , mPointAttenuationEnabled(false)
         , mContentTypeLookupBuilt(false)
         , mAlphaRejectVal(0)
-        , mDepthFunc(CMPF_LESS_EQUAL)
         , mDepthBiasConstant(0.0f)
         , mDepthBiasSlopeScale(0.0f)
         , mDepthBiasPerIteration(0.0f)
+        , mDepthFunc(CMPF_LESS_EQUAL)
         , mAlphaRejectFunc(CMPF_ALWAYS_PASS)
         , mCullMode(CULL_CLOCKWISE)
         , mManualCullMode(MANUAL_CULL_BACK)
         , mMaxSimultaneousLights(OGRE_MAX_SIMULTANEOUS_LIGHTS)
         , mStartLight(0)
         , mLightsPerIteration(1)
-        , mOnlyLightType(Light::LT_POINT)
+        , mIndex(index)
         , mLightMask(0xFFFFFFFF)
-        , mShadeOptions(SO_GOURAUD)
-        , mPolygonMode(PM_SOLID)
-        , mFogMode(FOG_NONE)
         , mFogColour(ColourValue::White)
         , mFogStart(0.0)
         , mFogEnd(1.0)
         , mFogDensity(0.001)
-        , mPassIterationCount(1)
         , mLineWidth(1.0f)
+        , mPassIterationCount(1)
         , mPointMinSize(0.0f)
         , mPointMaxSize(0.0f)
         , mPointAttenution(1.0f, 1.0f, 0.0f, 0.0f)
+        , mShadeOptions(SO_GOURAUD)
+        , mPolygonMode(PM_SOLID)
         , mIlluminationStage(IS_UNKNOWN)
+        , mOnlyLightType(Light::LT_POINT)
+        , mFogMode(FOG_NONE)
     {
         // init the hash inline
         _recalculateHash();
@@ -177,7 +177,7 @@ namespace Ogre {
 
     //-----------------------------------------------------------------------------
     Pass::Pass(Technique *parent, unsigned short index, const Pass& oth)
-        : mParent(parent), mIndex(index), mQueuedForDeletion(false), mPassIterationCount(1)
+        : mParent(parent), mQueuedForDeletion(false), mIndex(index), mPassIterationCount(1)
     {
         *this = oth;
         mParent = parent;
@@ -256,30 +256,6 @@ namespace Ogre {
             othUsage ? programUsage.reset(new GpuProgramUsage(*othUsage, this)) : programUsage.reset();
         }
 
-        mShadowCasterVertexProgramUsage.reset();
-        if (oth.mShadowCasterVertexProgramUsage)
-        {
-            mShadowCasterVertexProgramUsage.reset(new GpuProgramUsage(*(oth.mShadowCasterVertexProgramUsage), this));
-        }
-
-        mShadowCasterFragmentProgramUsage.reset();
-        if (oth.mShadowCasterFragmentProgramUsage)
-        {
-            mShadowCasterFragmentProgramUsage.reset(new GpuProgramUsage(*(oth.mShadowCasterFragmentProgramUsage), this));
-        }
-
-        mShadowReceiverVertexProgramUsage.reset();
-        if (oth.mShadowReceiverVertexProgramUsage)
-        {
-            mShadowReceiverVertexProgramUsage.reset(new GpuProgramUsage(*(oth.mShadowReceiverVertexProgramUsage), this));
-        }
-
-        mShadowReceiverFragmentProgramUsage.reset();
-        if (oth.mShadowReceiverFragmentProgramUsage)
-        {
-            mShadowReceiverFragmentProgramUsage.reset(new GpuProgramUsage(*(oth.mShadowReceiverFragmentProgramUsage), this));
-        }
-
         TextureUnitStates::const_iterator i, iend;
 
         // Clear texture units but doesn't notify need recompilation in the case
@@ -319,14 +295,6 @@ namespace Ogre {
         for(const auto& u : mProgramUsage)
             memSize += u ? u->calculateSize() : 0;
 
-        if(mShadowCasterVertexProgramUsage)
-            memSize += mShadowCasterVertexProgramUsage->calculateSize();
-        if(mShadowCasterFragmentProgramUsage)
-            memSize += mShadowCasterFragmentProgramUsage->calculateSize();
-        if(mShadowReceiverVertexProgramUsage)
-            memSize += mShadowReceiverVertexProgramUsage->calculateSize();
-        if(mShadowReceiverFragmentProgramUsage)
-            memSize += mShadowReceiverFragmentProgramUsage->calculateSize();
         return memSize;
     }
     //-----------------------------------------------------------------------
@@ -493,51 +461,28 @@ namespace Ogre {
     {
             OGRE_LOCK_MUTEX(mTexUnitChangeMutex);
 
-        assert(state && "state is 0 in Pass::addTextureUnitState()");
-        if (state)
-        {
-            // only attach TUS to pass if TUS does not belong to another pass
-            if ((state->getParent() == 0) || (state->getParent() == this))
-            {
-                mTextureUnitStates.push_back(state);
-                // Notify state
-                state->_notifyParent(this);
-                // if texture unit state name is empty then give it a default name based on its index
-                if (state->getName().empty())
-                {
-                    // its the last entry in the container so its index is size - 1
-                    size_t idx = mTextureUnitStates.size() - 1;
-                    
-                    // allow 8 digit hex number. there should never be that many texture units.
-                    // This sprintf replaced a call to StringConverter::toString for performance reasons
-                    state->setName( StringUtil::format("%lx", static_cast<long>(idx)));
-                    
-                    OGRE_IGNORE_DEPRECATED_BEGIN
-                    /** since the name was never set and a default one has been made, clear the alias name
-                     so that when the texture unit name is set by the user, the alias name will be set to
-                     that name
-                    */
-                    state->setTextureNameAlias(BLANKSTRING);
-                    OGRE_IGNORE_DEPRECATED_END
-                }
-                _notifyNeedsRecompile();
-                _dirtyHash();
-            }
-            else
-            {
-                OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "TextureUnitState already attached to another pass",
-                    "Pass:addTextureUnitState");
+        OgreAssert(state , "TextureUnitState is NULL");
 
-            }
-            mContentTypeLookupBuilt = false;
+        // only attach TUS to pass if TUS does not belong to another pass
+        OgreAssert(!state->getParent() || (state->getParent() == this), "TextureUnitState already attached to another pass");
+
+        mTextureUnitStates.push_back(state);
+        // Notify state
+        state->_notifyParent(this);
+        // if texture unit state name is empty then give it a default name based on its index
+        if (state->getName().empty())
+        {
+            // its the last entry in the container so its index is size - 1
+            size_t idx = mTextureUnitStates.size() - 1;
+
+            // allow 8 digit hex number. there should never be that many texture units.
+            // This sprintf replaced a call to StringConverter::toString for performance reasons
+            state->setName( StringUtil::format("%lx", static_cast<long>(idx)));
         }
-    }
-    //-----------------------------------------------------------------------
-    TextureUnitState* Pass::getTextureUnitState(unsigned short index) const
-    {
-            OGRE_LOCK_MUTEX(mTexUnitChangeMutex);
-        assert (index < mTextureUnitStates.size() && "Index out of bounds");
-        return mTextureUnitStates[index];
+        _notifyNeedsRecompile();
+        _dirtyHash();
+
+        mContentTypeLookupBuilt = false;
     }
     //-----------------------------------------------------------------------------
     TextureUnitState* Pass::getTextureUnitState(const String& name) const
@@ -569,18 +514,10 @@ namespace Ogre {
         assert(state && "state is 0 in Pass::getTextureUnitStateIndex()");
 
         // only find index for state attached to this pass
-        if (state->getParent() == this)
-        {
-            TextureUnitStates::const_iterator i =
-                std::find(mTextureUnitStates.begin(), mTextureUnitStates.end(), state);
-            assert(i != mTextureUnitStates.end() && "state is supposed to attached to this pass");
-            return static_cast<unsigned short>(std::distance(mTextureUnitStates.begin(), i));
-        }
-        else
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "TextureUnitState is not attached to this pass",
-                "Pass:getTextureUnitStateIndex");
-        }
+        OgreAssert(state->getParent() == this, "TextureUnitState is not attached to this pass");
+        auto i = std::find(mTextureUnitStates.begin(), mTextureUnitStates.end(), state);
+        assert(i != mTextureUnitStates.end() && "state is supposed to attached to this pass");
+        return static_cast<unsigned short>(std::distance(mTextureUnitStates.begin(), i));
     }
 
     //-----------------------------------------------------------------------
@@ -723,11 +660,6 @@ namespace Ogre {
         return mBlendState.destFactorAlpha;
     }
     //-----------------------------------------------------------------------
-    bool Pass::hasSeparateSceneBlending() const
-    {
-        return true;
-    }
-    //-----------------------------------------------------------------------
     void Pass::setSceneBlendingOperation(SceneBlendOperation op)
     {
         mBlendState.operation = op;
@@ -748,11 +680,6 @@ namespace Ogre {
     SceneBlendOperation Pass::getSceneBlendingOperationAlpha() const
     {
         return mBlendState.alphaOperation;
-    }
-    //-----------------------------------------------------------------------
-    bool Pass::hasSeparateSceneBlendingOperations() const
-    {
-        return true;
     }
     //-----------------------------------------------------------------------
     bool Pass::isTransparent(void) const
@@ -1044,12 +971,9 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     Pass* Pass::_split(unsigned short numUnits)
     {
-        if (isProgrammable())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Programmable passes cannot be "
-                "automatically split, define a fallback technique instead.",
-                "Pass:_split");
-        }
+        OgreAssert(
+            !isProgrammable(),
+            "Programmable passes cannot be automatically split, define a fallback technique instead");
 
         if (mTextureUnitStates.size() > numUnits)
         {
@@ -1138,28 +1062,6 @@ namespace Ogre {
         // Load programs
         for (const auto& u : mProgramUsage)
             if(u) u->_load();
-
-        if (mShadowCasterVertexProgramUsage)
-        {
-            // Load vertex program
-            mShadowCasterVertexProgramUsage->_load();
-        }
-        if (mShadowCasterFragmentProgramUsage)
-        {
-            // Load fragment program
-            mShadowCasterFragmentProgramUsage->_load();
-        }
-        if (mShadowReceiverVertexProgramUsage)
-        {
-            // Load vertex program
-            mShadowReceiverVertexProgramUsage->_load();
-        }
-
-        if (mShadowReceiverFragmentProgramUsage)
-        {
-            // Load Fragment program
-            mShadowReceiverFragmentProgramUsage->_load();
-        }
 
         if (mHashDirtyQueued)
         {
@@ -1516,11 +1418,6 @@ namespace Ogre {
         for (auto& u : mProgramUsage)
             u.reset();
 
-        mShadowCasterVertexProgramUsage.reset();
-        mShadowCasterFragmentProgramUsage.reset();
-        mShadowReceiverVertexProgramUsage.reset();
-        mShadowReceiverFragmentProgramUsage.reset();
-
         // remove from dirty list, if there
         {
             OGRE_LOCK_MUTEX(msDirtyHashListMutex);
@@ -1545,247 +1442,9 @@ namespace Ogre {
              mSpecular == ColourValue::Black));
     }
     //-----------------------------------------------------------------------
-    void Pass::setShadowCasterVertexProgram(const String& name)
-    {
-        // Turn off vertex program if name blank
-        if (name.empty())
-        {
-            mShadowCasterVertexProgramUsage.reset();
-        }
-        else
-        {
-            if (!mShadowCasterVertexProgramUsage)
-            {
-                mShadowCasterVertexProgramUsage.reset(new GpuProgramUsage(GPT_VERTEX_PROGRAM, this));
-            }
-            mShadowCasterVertexProgramUsage->setProgramName(name);
-        }
-        _notifyNeedsRecompile();
-    }
-    //-----------------------------------------------------------------------
-    void Pass::setShadowCasterVertexProgramParameters(GpuProgramParametersSharedPtr params)
-    {
-        if (!mShadowCasterVertexProgramUsage)
-        {
-            OGRE_EXCEPT (Exception::ERR_INVALIDPARAMS,
-                "This pass does not have a shadow caster vertex program assigned!",
-                "Pass::setShadowCasterVertexProgramParameters");
-        }
-        mShadowCasterVertexProgramUsage->setParameters(params);
-    }
-    //-----------------------------------------------------------------------
-    const String& Pass::getShadowCasterVertexProgramName(void) const
-    {
-        if (!mShadowCasterVertexProgramUsage)
-            return BLANKSTRING;
-        else
-            return mShadowCasterVertexProgramUsage->getProgramName();
-    }
-    //-----------------------------------------------------------------------
-    GpuProgramParametersSharedPtr Pass::getShadowCasterVertexProgramParameters(void) const
-    {
-        if (!mShadowCasterVertexProgramUsage)
-        {
-            OGRE_EXCEPT (Exception::ERR_INVALIDPARAMS,
-                "This pass does not have a shadow caster vertex program assigned!",
-                "Pass::getShadowCasterVertexProgramParameters");
-        }
-        return mShadowCasterVertexProgramUsage->getParameters();
-    }
-    //-----------------------------------------------------------------------
-    const GpuProgramPtr& Pass::getShadowCasterVertexProgram(void) const
-    {
-        return mShadowCasterVertexProgramUsage->getProgram();
-    }
-    //-----------------------------------------------------------------------
-    void Pass::setShadowCasterFragmentProgram(const String& name)
-    {
-        // Turn off fragment program if name blank
-        if (name.empty())
-        {
-            mShadowCasterFragmentProgramUsage.reset();
-        }
-        else
-        {
-            if (!mShadowCasterFragmentProgramUsage)
-            {
-                mShadowCasterFragmentProgramUsage.reset(new GpuProgramUsage(GPT_FRAGMENT_PROGRAM, this));
-            }
-            mShadowCasterFragmentProgramUsage->setProgramName(name);
-        }
-        _notifyNeedsRecompile();
-    }
-    //-----------------------------------------------------------------------
-    void Pass::setShadowCasterFragmentProgramParameters(GpuProgramParametersSharedPtr params)
-    {
-        if (!mShadowCasterFragmentProgramUsage &&
-            !Root::getSingletonPtr()->getRenderSystem()->getCapabilities()->hasCapability(
-                RSC_FIXED_FUNCTION))
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                        "This pass does not have a shadow caster fragment program assigned!",
-                        "Pass::setShadowCasterFragmentProgramParameters");
-        }
-        mShadowCasterFragmentProgramUsage->setParameters(params);
-    }
-    //-----------------------------------------------------------------------
-    const String& Pass::getShadowCasterFragmentProgramName(void) const
-    {
-        if (!mShadowCasterFragmentProgramUsage)
-            return BLANKSTRING;
-        else
-            return mShadowCasterFragmentProgramUsage->getProgramName();
-    }
-    //-----------------------------------------------------------------------
-    GpuProgramParametersSharedPtr Pass::getShadowCasterFragmentProgramParameters(void) const
-    {
-
-        if (!mShadowCasterFragmentProgramUsage &&
-            !Root::getSingletonPtr()->getRenderSystem()->getCapabilities()->hasCapability(
-                RSC_FIXED_FUNCTION))
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                        "This pass does not have a shadow caster fragment program assigned!",
-                        "Pass::getShadowCasterFragmentProgramParameters");
-        }
-
-        return mShadowCasterFragmentProgramUsage->getParameters();
-    }
-    //-----------------------------------------------------------------------
-    const GpuProgramPtr& Pass::getShadowCasterFragmentProgram(void) const
-    {
-        return mShadowCasterFragmentProgramUsage->getProgram();
-    }
-    //-----------------------------------------------------------------------
-    void Pass::setShadowReceiverVertexProgram(const String& name)
-    {
-        // Turn off vertex program if name blank
-        if (name.empty())
-        {
-            mShadowReceiverVertexProgramUsage.reset();
-        }
-        else
-        {
-            if (!mShadowReceiverVertexProgramUsage)
-            {
-                mShadowReceiverVertexProgramUsage.reset(new GpuProgramUsage(GPT_VERTEX_PROGRAM, this));
-            }
-            mShadowReceiverVertexProgramUsage->setProgramName(name);
-        }
-        _notifyNeedsRecompile();
-    }
-    //-----------------------------------------------------------------------
-    void Pass::setShadowReceiverVertexProgramParameters(GpuProgramParametersSharedPtr params)
-    {
-        if (!mShadowReceiverVertexProgramUsage)
-        {
-            OGRE_EXCEPT (Exception::ERR_INVALIDPARAMS,
-                "This pass does not have a shadow receiver vertex program assigned!",
-                "Pass::setShadowReceiverVertexProgramParameters");
-        }
-        mShadowReceiverVertexProgramUsage->setParameters(params);
-    }
-    //-----------------------------------------------------------------------
-    const String& Pass::getShadowReceiverVertexProgramName(void) const
-    {
-        if (!mShadowReceiverVertexProgramUsage)
-            return BLANKSTRING;
-        else
-            return mShadowReceiverVertexProgramUsage->getProgramName();
-    }
-    //-----------------------------------------------------------------------
-    GpuProgramParametersSharedPtr Pass::getShadowReceiverVertexProgramParameters(void) const
-    {
-        if (!mShadowReceiverVertexProgramUsage)
-        {
-            OGRE_EXCEPT (Exception::ERR_INVALIDPARAMS,
-                "This pass does not have a shadow receiver vertex program assigned!",
-                "Pass::getShadowReceiverVertexProgramParameters");
-        }
-        return mShadowReceiverVertexProgramUsage->getParameters();
-    }
-    //-----------------------------------------------------------------------
-    const GpuProgramPtr& Pass::getShadowReceiverVertexProgram(void) const
-    {
-        return mShadowReceiverVertexProgramUsage->getProgram();
-    }
-    //-----------------------------------------------------------------------
-    void Pass::setShadowReceiverFragmentProgram(const String& name)
-    {
-        // Turn off Fragment program if name blank
-        if (name.empty())
-        {
-            mShadowReceiverFragmentProgramUsage.reset();
-        }
-        else
-        {
-            if (!mShadowReceiverFragmentProgramUsage)
-            {
-                mShadowReceiverFragmentProgramUsage.reset(new GpuProgramUsage(GPT_FRAGMENT_PROGRAM, this));
-            }
-            mShadowReceiverFragmentProgramUsage->setProgramName(name);
-        }
-        _notifyNeedsRecompile();
-    }
-    //-----------------------------------------------------------------------
-    void Pass::setShadowReceiverFragmentProgramParameters(GpuProgramParametersSharedPtr params)
-    {
-        if (!mShadowReceiverFragmentProgramUsage)
-        {
-            OGRE_EXCEPT (Exception::ERR_INVALIDPARAMS,
-                "This pass does not have a shadow receiver fragment program assigned!",
-                "Pass::setShadowReceiverFragmentProgramParameters");
-        }
-        mShadowReceiverFragmentProgramUsage->setParameters(params);
-    }
-    //-----------------------------------------------------------------------
-    const String& Pass::getShadowReceiverFragmentProgramName(void) const
-    {
-        if (!mShadowReceiverFragmentProgramUsage)
-            return BLANKSTRING;
-        else
-            return mShadowReceiverFragmentProgramUsage->getProgramName();
-    }
-    //-----------------------------------------------------------------------
-    GpuProgramParametersSharedPtr Pass::getShadowReceiverFragmentProgramParameters(void) const
-    {
-        if (!mShadowReceiverFragmentProgramUsage)
-        {
-            OGRE_EXCEPT (Exception::ERR_INVALIDPARAMS,
-                "This pass does not have a shadow receiver fragment program assigned!",
-                "Pass::getShadowReceiverFragmentProgramParameters");
-        }
-        return mShadowReceiverFragmentProgramUsage->getParameters();
-    }
-    //-----------------------------------------------------------------------
-    const GpuProgramPtr& Pass::getShadowReceiverFragmentProgram(void) const
-    {
-        return mShadowReceiverFragmentProgramUsage->getProgram();
-    }
-    //-----------------------------------------------------------------------
     const String& Pass::getResourceGroup(void) const
     {
         return mParent->getResourceGroup();
-    }
-
-    //-----------------------------------------------------------------------
-    bool Pass::applyTextureAliases(const AliasTextureNamePairList& aliasList, const bool apply) const
-    {
-        // iterate through each texture unit state and apply the texture alias if it applies
-        TextureUnitStates::const_iterator i, iend;
-        iend = mTextureUnitStates.end();
-        bool testResult = false;
-
-        for (i = mTextureUnitStates.begin(); i != iend; ++i)
-        {
-            OGRE_IGNORE_DEPRECATED_BEGIN
-            if ((*i)->applyTextureAliases(aliasList, apply))
-                testResult = true;
-            OGRE_IGNORE_DEPRECATED_END
-        }
-
-        return testResult;
-
     }
     //-----------------------------------------------------------------------
     unsigned short Pass::_getTextureUnitWithContentTypeIndex(

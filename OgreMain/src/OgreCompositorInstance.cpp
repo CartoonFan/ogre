@@ -111,15 +111,15 @@ void CompositorInstance::setAlive(bool value)
 class RSClearOperation: public CompositorInstance::RenderSystemOperation
 {
 public:
-    RSClearOperation(uint32 inBuffers, ColourValue inColour, Real inDepth, unsigned short inStencil, bool inAutomaticColour):
-        buffers(inBuffers), colour(inColour), automaticColour(inAutomaticColour), depth(inDepth), stencil(inStencil)
+    RSClearOperation(uint32 inBuffers, ColourValue inColour, Real inDepth, unsigned short inStencil, CompositorChain *inChain):
+        chain(inChain), buffers(inBuffers), colour(inColour), depth(inDepth), stencil(inStencil)
     {}
+    /// Automatic colour from original viewport background colour
+    CompositorChain* chain;
     /// Which buffers to clear (FrameBufferType)
     uint32 buffers;
     /// Colour to clear in case FBT_COLOUR is set
     ColourValue colour;
-    /// Automatic colour from original viewport background colour
-    bool automaticColour;
     /// Depth to set in case FBT_DEPTH is set
     Real depth;
     /// Stencil value to set in case FBT_STENCIL is set
@@ -127,9 +127,8 @@ public:
 
     virtual void execute(SceneManager *sm, RenderSystem *rs)
     {
-        // _getViewport returns the viewport currently rendered, while getViewport returns lastViewport!
-        if((buffers & FBT_COLOUR) && automaticColour)
-          colour = rs->_getViewport()->getCamera()->getViewport()->getBackgroundColour();
+        if((buffers & FBT_COLOUR) && chain) // if chain is present, query colour from dst viewport
+          colour = chain->getViewport()->getBackgroundColour();
         rs->clearFrameBuffer(buffers, colour, depth, stencil);
     }
 };
@@ -139,27 +138,13 @@ public:
 class RSStencilOperation: public CompositorInstance::RenderSystemOperation
 {
 public:
-    RSStencilOperation(bool inStencilCheck, CompareFunction inFunc, uint32 inRefValue, uint32 inMask,
-        StencilOperation inStencilFailOp, StencilOperation inDepthFailOp, StencilOperation inPassOp,
-        bool inTwoSidedOperation, bool inReadBackAsTexture):
-        stencilCheck(inStencilCheck), func(inFunc), refValue(inRefValue), mask(inMask),
-        stencilFailOp(inStencilFailOp), depthFailOp(inDepthFailOp), passOp(inPassOp),
-        twoSidedOperation(inTwoSidedOperation), readBackAsTexture(inReadBackAsTexture)
-    {}
-    bool stencilCheck;
-    CompareFunction func; 
-    uint32 refValue;
-    uint32 mask;
-    StencilOperation stencilFailOp;
-    StencilOperation depthFailOp;
-    StencilOperation passOp;
-    bool twoSidedOperation;
-    bool readBackAsTexture;
+    RSStencilOperation(const StencilState& inState) : state(inState) {}
 
-    virtual void execute(SceneManager *sm, RenderSystem *rs)
+    StencilState state;
+
+    void execute(SceneManager *sm, RenderSystem *rs) override
     {
-        rs->setStencilCheckEnabled(stencilCheck);
-        rs->setStencilBufferParams(func, refValue, mask, 0xFFFFFFFF, stencilFailOp, depthFailOp, passOp, twoSidedOperation, readBackAsTexture);
+        rs->setStencilState(state);
     }
 };
 
@@ -333,16 +318,12 @@ void CompositorInstance::collectPasses(TargetOperation &finalState, const Compos
                 pass->getClearBuffers(),
                 pass->getClearColour(),
                 pass->getClearDepth(),
-                (ushort)pass->getClearStencil(),
-                pass->getAutomaticColour()
+                pass->getClearStencil(),
+                pass->getAutomaticColour() ? mChain : NULL
                 ));
             break;
         case CompositionPass::PT_STENCIL:
-            queueRenderSystemOp(finalState, OGRE_NEW RSStencilOperation(
-                pass->getStencilCheck(),pass->getStencilFunc(), pass->getStencilRefValue(),
-                pass->getStencilMask(), pass->getStencilFailOp(), pass->getStencilDepthFailOp(),
-                pass->getStencilPassOp(), pass->getStencilTwoSidedOperation(), pass->getStencilReadBackAsTextureOperation()
-                ));
+            queueRenderSystemOp(finalState, OGRE_NEW RSStencilOperation(pass->getStencilState()));
             break;
         case CompositionPass::PT_RENDERSCENE: 
         {
@@ -529,16 +510,6 @@ void CompositorInstance::_compileOutputOperation(TargetOperation &finalState)
     }
     /// Collect passes
     collectPasses(finalState, tpass);
-}
-//-----------------------------------------------------------------------
-Compositor *CompositorInstance::getCompositor()
-{
-    return mCompositor;
-}
-//-----------------------------------------------------------------------
-CompositionTechnique *CompositorInstance::getTechnique()
-{
-    return mTechnique;
 }
 //-----------------------------------------------------------------------
 void CompositorInstance::setTechnique(CompositionTechnique* tech, bool reuseTextures)
@@ -1057,10 +1028,7 @@ CompositorInstance::resolveTexReference(const CompositionTechnique::TextureDefin
                         "Referenced texture '" + texDef->refTexName + "' must have global scope");
     }
 
-    if(!refTexDef)
-    {
-        OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND, "Referencing non-existent compositor texture");
-    }
+    OgreAssert(refTexDef, "Referencing non-existent compositor texture");
 
     if (refTexDef->scope == CompositionTechnique::TS_LOCAL)
         OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
@@ -1110,27 +1078,15 @@ RenderTarget *CompositorInstance::getTargetForTex(const String &name, int slice)
                     }
                 }
                 
-                if (refCompInst == 0 || !refCompInst->getEnabled()) 
-                {
-                    OGRE_EXCEPT(Exception::ERR_INVALID_STATE, "Referencing inactive compositor texture",
-                        "CompositorInstance::getTargetForTex");
-                }
-                if (!beforeMe)
-                {
-                    OGRE_EXCEPT(Exception::ERR_INVALID_STATE, "Referencing compositor that is later in the chain",
-                        "CompositorInstance::getTargetForTex");
-                }
+                OgreAssert(refCompInst && refCompInst->getEnabled(), "Referencing inactive compositor texture");
+                OgreAssert(beforeMe, "Referencing compositor that is later in the chain");
                 return refCompInst->getRenderTarget(texDef->refTexName, slice);
             }
             case CompositionTechnique::TS_GLOBAL:
             {
                 //Chain and global case - the referenced compositor will know how to handle
                 const CompositorPtr& refComp = CompositorManager::getSingleton().getByName(texDef->refCompName);
-                if(!refComp)
-                {
-                    OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND, "Referencing non-existent compositor",
-                        "CompositorInstance::getTargetForTex");
-                }
+                OgreAssert(refComp, "Referencing non-existent compositor");
                 return refComp->getRenderTarget(texDef->refTexName, slice);
             }
             case CompositionTechnique::TS_LOCAL:
@@ -1146,11 +1102,7 @@ RenderTarget *CompositorInstance::getTargetForTex(const String &name, int slice)
 const TexturePtr &CompositorInstance::getSourceForTex(const String &name, size_t mrtIndex)
 {
     CompositionTechnique::TextureDefinition* texDef = mTechnique->getTextureDefinition(name);
-    if(texDef == 0)
-    {
-        OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND, "Referencing non-existent TextureDefinition",
-                    "CompositorInstance::getSourceForTex");
-    }
+    OgreAssert(texDef, "Referencing non-existent TextureDefinition");
     
     //Check if texture definition is reference
     if(!texDef->refCompName.empty())
@@ -1178,28 +1130,16 @@ const TexturePtr &CompositorInstance::getSourceForTex(const String &name, size_t
                         beforeMe = false;
                     }
                 }
-                
-                if (refCompInst == 0 || !refCompInst->getEnabled()) 
-                {
-                    OGRE_EXCEPT(Exception::ERR_INVALID_STATE, "Referencing inactive compositor texture",
-                        "CompositorInstance::getSourceForTex");
-                }
-                if (!beforeMe)
-                {
-                    OGRE_EXCEPT(Exception::ERR_INVALID_STATE, "Referencing compositor that is later in the chain",
-                        "CompositorInstance::getSourceForTex");
-                }
+
+                OgreAssert(refCompInst && refCompInst->getEnabled(), "Referencing inactive compositor texture");
+                OgreAssert(beforeMe, "Referencing compositor that is later in the chain");
                 return refCompInst->getTextureInstance(texDef->refTexName, mrtIndex);
             }
             case CompositionTechnique::TS_GLOBAL:
             {
                 //Chain and global case - the referenced compositor will know how to handle
                 const CompositorPtr& refComp = CompositorManager::getSingleton().getByName(texDef->refCompName);
-                if(!refComp)
-                {
-                    OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND, "Referencing non-existent compositor",
-                        "CompositorInstance::getSourceForTex");
-                }
+                OgreAssert(refComp, "Referencing non-existent compositor");
                 return refComp->getTextureInstance(texDef->refTexName, mrtIndex);
             }
             case CompositionTechnique::TS_LOCAL:

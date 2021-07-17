@@ -30,7 +30,6 @@ THE SOFTWARE.
 
 #include "OgrePrerequisites.h"
 #include "OgreMovableObject.h"
-#include "OgreRenderable.h"
 #include "OgreAxisAlignedBox.h"
 #include "OgreVertexIndexData.h"
 #include "OgreHeaderPrefix.h"
@@ -45,7 +44,7 @@ namespace Ogre
     */
     /** Specifies orientation mode.
     */
-    enum OrientationMode
+    enum OrientationMode : uint8
     {
         OR_DEGREE_0       = 0,
         OR_DEGREE_90      = 1,
@@ -59,7 +58,7 @@ namespace Ogre
 
     /** Specifies perspective (realistic) or orthographic (architectural) projection.
     */
-    enum ProjectionType
+    enum ProjectionType : uint8
     {
         PT_ORTHOGRAPHIC,
         PT_PERSPECTIVE
@@ -67,7 +66,7 @@ namespace Ogre
 
     /** Worldspace clipping planes.
     */
-    enum FrustumPlane
+    enum FrustumPlane : uint8
     {
         FRUSTUM_PLANE_NEAR   = 0,
         FRUSTUM_PLANE_FAR    = 1,
@@ -81,13 +80,9 @@ namespace Ogre
         used to represent either a visible area or a projection area. Can be used
         for a number of applications.
     */
-    class _OgreExport Frustum : public MovableObject, public Renderable
+    class _OgreExport Frustum : public MovableObject
     {
-        bool getCastsShadows(void) const override { return getCastShadows(); }
     protected:
-        /// Orthographic or perspective?
-        ProjectionType mProjType;
-
         /// y-direction field-of-view (default 45)
         Radian mFOVy;
         /// Far clip distance - default 10000
@@ -126,18 +121,16 @@ namespace Ogre
         mutable bool mRecalcFrustumPlanes;
         /// Something re the world space corners has changed
         mutable bool mRecalcWorldSpaceCorners;
-        /// Something re the vertex data has changed
-        mutable bool mRecalcVertexData;
         /// Are we using a custom view matrix?
         bool mCustomViewMatrix;
         /// Are we using a custom projection matrix?
         bool mCustomProjMatrix;
         /// Have the frustum extents been manually set?
         bool mFrustumExtentsManuallySet;
+        /// Orthographic or perspective?
+        ProjectionType mProjType;
         /// Frustum extents
         mutable RealRect mExtents;
-        /// Frustum orientation mode
-        mutable OrientationMode mOrientationMode;
         
         // Internal functions for calcs
         RealRect calcProjectionParameters() const;
@@ -155,7 +148,6 @@ namespace Ogre
         void updateWorldSpaceCorners(void) const;
         /// Implementation of updateWorldSpaceCorners (called if out of date)
         virtual void updateWorldSpaceCornersImpl(void) const;
-        void updateVertexData(void) const;
         virtual bool isViewOutOfDate(void) const;
         bool isFrustumOutOfDate(void) const;
         /// Signal to update frustum information.
@@ -166,11 +158,13 @@ namespace Ogre
         /// Shared class-level name for Movable type
         static String msMovableType;
 
-        mutable AxisAlignedBox mBoundingBox;
-        mutable VertexData mVertexData;
-
         ColourValue mDebugColour;
-        MaterialPtr mMaterial;
+        /// Pointer to a reflection plane (automatically updated)
+        const MovablePlane* mLinkedReflectPlane;
+        /// Pointer to oblique projection plane (automatically updated)
+        const MovablePlane* mLinkedObliqueProjPlane;
+
+        mutable AxisAlignedBox mBoundingBox;
         mutable Vector3 mWorldSpaceCorners[8];
 
         /// Derived reflection matrix
@@ -181,11 +175,6 @@ namespace Ogre
         mutable Plane mLastLinkedReflectionPlane;
         /// Fixed oblique projection plane
         mutable Plane mObliqueProjPlane;
-
-        /// Pointer to a reflection plane (automatically updated)
-        const MovablePlane* mLinkedReflectPlane;
-        /// Pointer to oblique projection plane (automatically updated)
-        const MovablePlane* mLinkedObliqueProjPlane;
         /// Record of the last world-space oblique depth projection plane info used
         mutable Plane mLastLinkedObliqueProjPlane;
 
@@ -193,6 +182,8 @@ namespace Ogre
         bool mReflect;
         /// Is this frustum using an oblique depth projection?
         bool mObliqueDepthProjection;
+        /// Frustum orientation mode
+        mutable OrientationMode mOrientationMode;
 
     public:
 
@@ -324,11 +315,6 @@ namespace Ogre
         void resetFrustumExtents();
         /** Get the extents of the frustum in view space. */
         RealRect getFrustumExtents() const;
-
-        /// @deprecated
-        /// @overload
-        OGRE_DEPRECATED void getFrustumExtents(Real& outleft, Real& outright, Real& outtop, Real& outbottom) const;
-
 
         /** Gets the projection matrix for this frustum adjusted for the current
             rendersystem specifics (may be right or left-handed, depth range
@@ -480,17 +466,8 @@ namespace Ogre
         const String& getMovableType(void) const override;
         void _notifyCurrentCamera(Camera* cam) override;
 
-        /// @deprecated use setDebugColour
-        OGRE_DEPRECATED void setMaterial(const MaterialPtr& mat);
-
         void setDebugColour(const ColourValue& col) { mDebugColour = col; }
         const ColourValue& getDebugColour() const { return mDebugColour; }
-
-        const MaterialPtr& getMaterial(void) const override;
-        void getRenderOperation(RenderOperation& op) override;
-        void getWorldTransforms(Matrix4* xform) const override;
-        Real getSquaredViewDepth(const Camera* cam) const override;
-        const LightList& getLights(void) const override;
 
         typedef Vector3 Corners[8];
 

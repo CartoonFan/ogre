@@ -30,32 +30,95 @@ THE SOFTWARE
 #include "OgreTexture.h"
 #include "OgreLogManager.h"
 #include "OgreStringConverter.h"
-#include "OgreException.h"
 #include "OgreTextureUnitState.h"
 #include "OgreTechnique.h"
 #include "OgreBitwise.h"
 
-#include "OgreUTFString.h"
+#include "utf8.h"
 #include "OgreBillboardSet.h"
 #include "OgreBillboard.h"
 
+#ifdef HAVE_FREETYPE
 #define generic _generic    // keyword for C++/CX
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
 #undef generic
-
-
+#else
+#define STBTT_STATIC
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+#endif
 
 namespace Ogre
 {
     //---------------------------------------------------------------------
-    Font::CmdType Font::msTypeCmd;
-    Font::CmdSource Font::msSourceCmd;
-    Font::CmdCharSpacer Font::msCharacterSpacerCmd;
-    Font::CmdSize Font::msSizeCmd;
-    Font::CmdResolution Font::msResolutionCmd;
-    Font::CmdCodePoints Font::msCodePointsCmd;
+    namespace {
+    class CmdType : public ParamCommand
+    {
+    public:
+        String doGet(const void* target) const;
+        void doSet(void* target, const String& val);
+    };
+    class CmdSource : public ParamCommand
+    {
+    public:
+        String doGet(const void* target) const;
+        void doSet(void* target, const String& val);
+    };
+    class CmdCharSpacer : public ParamCommand
+    {
+    public:
+        String doGet(const void* target) const;
+        void doSet(void* target, const String& val);
+    };
+    class CmdSize : public ParamCommand
+    {
+    public:
+        String doGet(const void* target) const;
+        void doSet(void* target, const String& val);
+    };
+    class CmdResolution : public ParamCommand
+    {
+    public:
+        String doGet(const void* target) const;
+        void doSet(void* target, const String& val);
+    };
+    class CmdCodePoints : public ParamCommand
+    {
+    public:
+        String doGet(const void* target) const;
+        void doSet(void* target, const String& val);
+    };
+
+    // Command object for setting / getting parameters
+    static CmdType msTypeCmd;
+    static CmdSource msSourceCmd;
+    static CmdCharSpacer msCharacterSpacerCmd;
+    static CmdSize msSizeCmd;
+    static CmdResolution msResolutionCmd;
+    static CmdCodePoints msCodePointsCmd;
+    }
+
+    std::vector<uint32> utftoc32(String str)
+    {
+        std::vector<uint32> decoded;
+        decoded.reserve(str.size());
+
+        str.resize(str.size() + 3); // add padding for decoder
+        auto it = str.c_str();
+        auto end = str.c_str() + str.size() - 3;
+        while(it < end)
+        {
+            uint32 cpId;
+            int err = 0;
+            it = utf8_decode(it, &cpId, &err);
+            if(err)
+                continue;
+            decoded.push_back(cpId);
+        }
+        return decoded;
+    }
 
     //---------------------------------------------------------------------
     Font::Font(ResourceManager* creator, const String& name, ResourceHandle handle,
@@ -141,24 +204,12 @@ namespace Ogre
         return mTtfMaxBearingY;
     }
     //---------------------------------------------------------------------
-    const Font::GlyphInfo& Font::getGlyphInfo(CodePoint id) const
-    {
-        CodePointMap::const_iterator i = mCodePointMap.find(id);
-        if (i == mCodePointMap.end())
-        {
-            OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND, 
-                "Code point " + StringConverter::toString(id) + " not found in font "
-                + mName, "Font::getGlyphInfo");
-        }
-        return i->second;
-    }
-    //---------------------------------------------------------------------
     void Font::_setMaterial(const MaterialPtr &mat)
     {
         mMaterial = mat;
     }
 
-    void Font::putText(BillboardSet* bbs, const String& text, float height, const ColourValue& colour)
+    void Font::putText(BillboardSet* bbs, String text, float height, const ColourValue& colour)
     {
         // ensure loaded
         load();
@@ -168,16 +219,24 @@ namespace Ogre
         bbs->setBillboardOrigin(BBO_CENTER_LEFT);
         bbs->setDefaultDimensions(0, 0);
 
-        float spaceWidth = mCodePointMap.find('0')->second.aspectRatio * height;
+        float spaceWidth = mCodePointMap.find('0')->second.advance * height;
 
-        UTFString utfText = text;
+        text.resize(text.size() + 3); // add padding for decoder
+        auto it = text.c_str();
+        auto end = text.c_str() + text.size() - 3;
 
         const auto& bbox = bbs->getBoundingBox();
 
         float left = 0;
         float top = bbox == AxisAlignedBox::BOX_NULL ? 0 : bbox.getMinimum().y - height;
-        for (auto cpId : utfText)
+        while (it < end)
         {
+            uint32 cpId;
+            int err = 0;
+            it = utf8_decode(it, &cpId, &err);
+            if(err)
+                continue;
+
             if (cpId == ' ')
             {
                 left += spaceWidth;
@@ -195,12 +254,13 @@ namespace Ogre
             if (cp == mCodePointMap.end())
                 continue;
 
-            float width = cp->second.aspectRatio * height;
+            left += cp->second.bearing * height;
+
             auto bb = bbs->createBillboard(Vector3(left, top, 0), colour);
-            bb->setDimensions(width, height);
+            bb->setDimensions(cp->second.aspectRatio * height, height);
             bb->setTexcoordRect(cp->second.uvRect);
 
-            left += width;
+            left += (cp->second.advance - cp->second.bearing) * height;
         }
     }
 
@@ -285,6 +345,19 @@ namespace Ogre
     //---------------------------------------------------------------------
     void Font::loadResource(Resource* res)
     {
+        // Locate ttf file, load it pre-buffered into memory by wrapping the
+        // original DataStream in a MemoryDataStream
+        DataStreamPtr dataStreamPtr =
+            ResourceGroupManager::getSingleton().openResource(
+                mSource, mGroup, this);
+        MemoryDataStream ttfchunk(dataStreamPtr);
+
+        // If codepoints not supplied, assume ASCII
+        if (mCodePointRangeList.empty())
+        {
+            mCodePointRangeList.push_back(CodePointRange(33, 126));
+        }
+#ifdef HAVE_FREETYPE
         // ManualResourceLoader implementation - load the texture
         FT_Library ftLibrary;
         // Init freetype
@@ -293,13 +366,6 @@ namespace Ogre
             "Font::Font");
 
         FT_Face face;
-
-        // Locate ttf file, load it pre-buffered into memory by wrapping the
-        // original DataStream in a MemoryDataStream
-        DataStreamPtr dataStreamPtr =
-            ResourceGroupManager::getSingleton().openResource(
-                mSource, mGroup, this);
-        MemoryDataStream ttfchunk(dataStreamPtr);
 
         // Load font
         if( FT_New_Memory_Face( ftLibrary, ttfchunk.getPtr(), (FT_Long)ttfchunk.size() , 0, &face ) )
@@ -317,12 +383,6 @@ namespace Ogre
 
         FT_Pos max_height = 0, max_width = 0;
 
-        // If codepoints not supplied, assume ASCII
-        if (mCodePointRangeList.empty())
-        {
-            mCodePointRangeList.push_back(CodePointRange(33, 126));
-        }
-
         // Calculate maximum width, height and bearing
         size_t glyphCount = 0;
         for (const CodePointRange& range : mCodePointRangeList)
@@ -331,17 +391,42 @@ namespace Ogre
             {
                 FT_Load_Char( face, cp, FT_LOAD_RENDER );
 
-                max_height = std::max<FT_Pos>(2 * (face->glyph->bitmap.rows << 6) - face->glyph->metrics.horiBearingY, max_height);
-                mTtfMaxBearingY = std::max(int(face->glyph->metrics.horiBearingY), mTtfMaxBearingY);
-                max_width = std::max<FT_Pos>((face->glyph->advance.x >> 6) + (face->glyph->metrics.horiBearingX >> 6), max_width);
+                max_height = std::max<FT_Pos>(2 * face->glyph->bitmap.rows - (face->glyph->metrics.horiBearingY >> 6), max_height);
+                mTtfMaxBearingY = std::max(int(face->glyph->metrics.horiBearingY >> 6), mTtfMaxBearingY);
+                max_width = std::max<FT_Pos>(face->glyph->bitmap.width, max_width);
             }
 
         }
+#else
+        stbtt_fontinfo font;
+        stbtt_InitFont(&font, ttfchunk.getPtr(), 0);
+        // 64 gives the same texture resolution as freetype.
+        float scale = stbtt_ScaleForPixelHeight(&font, mTtfSize * mTtfResolution / 64);
 
+        int max_width = 0, max_height = 0;
+        // Calculate maximum width, height and bearing
+        size_t glyphCount = 0;
+        for (const CodePointRange& range : mCodePointRangeList)
+        {
+            for(CodePoint cp = range.first; cp <= range.second; ++cp, ++glyphCount)
+            {
+                int idx = stbtt_FindGlyphIndex(&font, cp);
+                if (!idx)    // It is actually in the font?
+                    continue;
+                TRect<int> r;
+                stbtt_GetGlyphBitmapBox(&font, idx, scale, scale, &r.left, &r.top, &r.right, &r.bottom);
+                max_height = std::max(r.height(), max_height);
+                mTtfMaxBearingY = std::max(-r.top, mTtfMaxBearingY);
+                max_width = std::max(r.width(), max_width);
+            }
+        }
+
+        max_height *= 1.125;
+#endif
         uint char_spacer = 1;
 
         // Now work out how big our texture needs to be
-        size_t rawSize = (max_width + char_spacer) * ((max_height >> 6) + char_spacer) * glyphCount;
+        size_t rawSize = (max_width + char_spacer) * (max_height + char_spacer) * glyphCount;
 
         uint32 tex_side = static_cast<uint32>(Math::Sqrt((Real)rawSize));
         // Now round up to nearest power of two
@@ -365,15 +450,16 @@ namespace Ogre
         // Reset content (transparent)
         img.setTo(ColourValue::ZERO);
 
-        size_t l = 0, m = 0;
+        uint32 l = 0, m = 0;
         for (const CodePointRange& range : mCodePointRangeList)
         {
             for(CodePoint cp = range.first; cp <= range.second; ++cp )
             {
-                FT_Error ftResult;
-
+                uchar* buffer;
+                int buffer_h = 0, buffer_pitch = 0;
+#ifdef HAVE_FREETYPE
                 // Load & render glyph
-                ftResult = FT_Load_Char( face, cp, FT_LOAD_RENDER );
+                FT_Error ftResult = FT_Load_Char( face, cp, FT_LOAD_RENDER );
                 if (ftResult)
                 {
                     // problem loading this glyph, continue
@@ -382,7 +468,8 @@ namespace Ogre
                     continue;
                 }
 
-                if (!face->glyph->bitmap.buffer)
+                buffer = face->glyph->bitmap.buffer;
+                if (!buffer)
                 {
                     // Yuck, FT didn't detect this but generated a null pointer!
                     LogManager::getSingleton().logWarning(StringUtil::format(
@@ -391,29 +478,47 @@ namespace Ogre
                 }
 
                 uint advance = face->glyph->advance.x >> 6;
+                uint width = face->glyph->bitmap.width;
+                buffer_pitch = face->glyph->bitmap.pitch;
+                buffer_h = face->glyph->bitmap.rows;
 
-                // If at end of row
-                if( finalWidth - 1 < l + ( advance ) )
+                FT_Pos y_bearing = mTtfMaxBearingY - (face->glyph->metrics.horiBearingY >> 6);
+                FT_Pos x_bearing = face->glyph->metrics.horiBearingX >> 6;
+#else
+                int idx = stbtt_FindGlyphIndex(&font, cp);
+                if (!idx)
                 {
-                    m += ( max_height >> 6 ) + char_spacer;
+                    LogManager::getSingleton().logWarning(
+                        StringUtil::format("Charcode %u is not in font %s", cp, mSource.c_str()));
+                    continue;
+                }
+
+                TRect<int> r;
+                stbtt_GetGlyphBitmapBox(&font, idx, scale, scale, &r.left, &r.top, &r.right, &r.bottom);
+
+                uint width = r.width();
+
+                int y_bearing = mTtfMaxBearingY + r.top;
+                int xoff = 0, yoff = 0;
+                buffer = stbtt_GetCodepointBitmap(&font, scale, scale, cp, &buffer_pitch, &buffer_h, &xoff, &yoff);
+
+                int advance = xoff + width, x_bearing = xoff;
+                // should be multiplied with scale, but still does not seem to do the right thing
+                // stbtt_GetGlyphHMetrics(&font, cp, &advance, &x_bearing);
+#endif
+                // If at end of row
+                if( finalWidth - 1 < l + width )
+                {
+                    m += max_height + char_spacer;
                     l = 0;
                 }
 
-                FT_Pos y_bearing = ( mTtfMaxBearingY >> 6 ) - ( face->glyph->metrics.horiBearingY >> 6 );
-                FT_Pos x_bearing = face->glyph->metrics.horiBearingX >> 6;
-
-                // x_bearing might be negative
-                uint x_offset = std::max(0, int(x_bearing));
-                // width might be larger than advance
-                uint start = x_offset - x_bearing; // case x_bearing is negative
-                uint width = std::min(face->glyph->bitmap.width - start, advance - x_offset);
-
-                for(unsigned int j = 0; j < face->glyph->bitmap.rows; j++ )
+                for(int j = 0; j < buffer_h; j++ )
                 {
-                    uchar* pSrc = face->glyph->bitmap.buffer + j * face->glyph->bitmap.pitch + start;
-                    size_t row = j + m + y_bearing;
-                    uchar* pDest = img.getData(l + x_offset, row);
-                    for(unsigned int k = 0; k < (width); k++ )
+                    uchar* pSrc = buffer + j * buffer_pitch;
+                    uint32 row = j + m + y_bearing;
+                    uchar* pDest = img.getData(l, row);
+                    for(unsigned int k = 0; k < width; k++ )
                     {
                         if (mAntialiasColour)
                         {
@@ -431,29 +536,28 @@ namespace Ogre
                     }
                 }
 
-                this->setGlyphTexCoords(cp,
-                    (Real)l / (Real)finalWidth,  // u1
-                    (Real)m / (Real)finalHeight,  // v1
-                    (Real)( l + advance ) / (Real)finalWidth, // u2
-                    ( m + ( max_height >> 6 ) ) / (Real)finalHeight, // v2
-                    textureAspect
-                    );
+                UVRect uvs((Real)l / (Real)finalWidth,                   // u1
+                           (Real)m / (Real)finalHeight,                  // v1
+                           (Real)(l + width) / (Real)finalWidth,         // u2
+                           (m + max_height) / (Real)finalHeight); // v2
+                this->setGlyphInfo({cp, uvs, textureAspect * uvs.width() / uvs.height(),
+                                    float(x_bearing) / max_height, float(advance) / max_height});
 
                 // Advance a column
-                l += (advance + char_spacer);
+                l += (width + char_spacer);
             }
         }
-
+#ifdef HAVE_FREETYPE
+        FT_Done_FreeType(ftLibrary);
+#endif
         Texture* tex = static_cast<Texture*>(res);
         // Call internal _loadImages, not loadImage since that's external and 
         // will determine load status etc again, and this is a manual loader inside load()
         tex->_loadImages({&img});
-
-        FT_Done_FreeType(ftLibrary);
     }
     //-----------------------------------------------------------------------
     //-----------------------------------------------------------------------
-    String Font::CmdType::doGet(const void* target) const
+    String CmdType::doGet(const void* target) const
     {
         const Font* f = static_cast<const Font*>(target);
         if (f->getType() == FT_TRUETYPE)
@@ -465,7 +569,7 @@ namespace Ogre
             return "image";
         }
     }
-    void Font::CmdType::doSet(void* target, const String& val)
+    void CmdType::doSet(void* target, const String& val)
     {
         Font* f = static_cast<Font*>(target);
         if (val == "truetype")
@@ -478,57 +582,56 @@ namespace Ogre
         }
     }
     //-----------------------------------------------------------------------
-    String Font::CmdSource::doGet(const void* target) const
+    String CmdSource::doGet(const void* target) const
     {
         const Font* f = static_cast<const Font*>(target);
         return f->getSource();
     }
-    void Font::CmdSource::doSet(void* target, const String& val)
+    void CmdSource::doSet(void* target, const String& val)
     {
         Font* f = static_cast<Font*>(target);
         f->setSource(val);
     }
     //-----------------------------------------------------------------------
-    String Font::CmdCharSpacer::doGet(const void* target) const
+    String CmdCharSpacer::doGet(const void* target) const
     {
         return "1";
     }
-    void Font::CmdCharSpacer::doSet(void* target, const String& val) {}
+    void CmdCharSpacer::doSet(void* target, const String& val) {}
     //-----------------------------------------------------------------------
-    String Font::CmdSize::doGet(const void* target) const
+    String CmdSize::doGet(const void* target) const
     {
         const Font* f = static_cast<const Font*>(target);
         return StringConverter::toString(f->getTrueTypeSize());
     }
-    void Font::CmdSize::doSet(void* target, const String& val)
+    void CmdSize::doSet(void* target, const String& val)
     {
         Font* f = static_cast<Font*>(target);
         f->setTrueTypeSize(StringConverter::parseReal(val));
     }
     //-----------------------------------------------------------------------
-    String Font::CmdResolution::doGet(const void* target) const
+    String CmdResolution::doGet(const void* target) const
     {
         const Font* f = static_cast<const Font*>(target);
         return StringConverter::toString(f->getTrueTypeResolution());
     }
-    void Font::CmdResolution::doSet(void* target, const String& val)
+    void CmdResolution::doSet(void* target, const String& val)
     {
         Font* f = static_cast<Font*>(target);
         f->setTrueTypeResolution(StringConverter::parseUnsignedInt(val));
     }
     //-----------------------------------------------------------------------
-    String Font::CmdCodePoints::doGet(const void* target) const
+    String CmdCodePoints::doGet(const void* target) const
     {
         const Font* f = static_cast<const Font*>(target);
-        const CodePointRangeList& rangeList = f->getCodePointRangeList();
         StringStream str;
-        for (CodePointRangeList::const_iterator i = rangeList.begin(); i != rangeList.end(); ++i)
+        for (const auto& i : f->getCodePointRangeList())
         {
-            str << i->first << "-" << i->second << " ";
+            str << i.first << "-" << i.second << " ";
         }
         return str.str();
     }
-    void Font::CmdCodePoints::doSet(void* target, const String& val)
+    void CmdCodePoints::doSet(void* target, const String& val)
     {
         // Format is "code_points start1-end1 start2-end2"
         Font* f = static_cast<Font*>(target);
@@ -540,9 +643,8 @@ namespace Ogre
             StringVector itemVec = StringUtil::split(item, "-");
             if (itemVec.size() == 2)
             {
-                f->addCodePointRange(CodePointRange(
-                    StringConverter::parseUnsignedInt(itemVec[0]),
-                    StringConverter::parseUnsignedInt(itemVec[1])));
+                f->addCodePointRange({StringConverter::parseUnsignedInt(itemVec[0]),
+                                      StringConverter::parseUnsignedInt(itemVec[1])});
             }
         }
     }

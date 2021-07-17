@@ -45,8 +45,8 @@ namespace Ogre {
     *  @{
     */
     class GLES2FBOManager;
-    class GpuProgramManager;
     class GLSLESProgramCommon;
+    class GLSLESProgramManager;
     class GLSLESProgramFactory;
     class GLES2StateCacheManager;
 #if !OGRE_NO_GLES2_CG_SUPPORT
@@ -73,7 +73,7 @@ namespace Ogre {
             /// State cache manager which responsible to reduce redundant state changes
             GLES2StateCacheManager* mStateCacheManager;
 
-            GpuProgramManager *mGpuProgramManager;
+            GLSLESProgramManager* mProgramManager;
             GLSLESProgramFactory* mGLSLESProgramFactory;
 #if !OGRE_NO_GLES2_CG_SUPPORT
             GLSLESCgProgramFactory* mGLSLESCgProgramFactory;
@@ -170,15 +170,7 @@ namespace Ogre {
 
             void _setPolygonMode(PolygonMode level);
 
-            void setStencilCheckEnabled(bool enabled);
-
-            void setStencilBufferParams(CompareFunction func = CMPF_ALWAYS_PASS, 
-                    uint32 refValue = 0, uint32 compareMask = 0xFFFFFFFF, uint32 writeMask = 0xFFFFFFFF,
-                    StencilOperation stencilFailOp = SOP_KEEP,
-                    StencilOperation depthFailOp = SOP_KEEP,
-                    StencilOperation passOp = SOP_KEEP,
-                    bool twoSidedOperation = false,
-                    bool readBackAsTexture = false);
+            void setStencilState(const StencilState& state) override;
 
             virtual void _setTextureUnitFiltering(size_t unit, FilterOptions minFilter,
                 FilterOptions magFilter, FilterOptions mipFilter);              
@@ -191,7 +183,7 @@ namespace Ogre {
 
             void clearFrameBuffer(unsigned int buffers,
                 const ColourValue& colour = ColourValue::Black,
-                Real depth = 1.0f, unsigned short stencil = 0);
+                float depth = 1.0f, unsigned short stencil = 0);
             HardwareOcclusionQuery* createHardwareOcclusionQuery(void);
 
             // ----------------------------------

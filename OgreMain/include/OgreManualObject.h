@@ -435,14 +435,20 @@ namespace Ogre
         @param name The name of the new material to use
         @param group The resource group of the new material to use
         */
-        virtual void setMaterialName(size_t subIndex, const String& name,
-            const String & group = ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+        void setMaterialName(size_t subIndex, const String& name,
+            const String & group = ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME)
+        {
+            mSectionList.at(subIndex)->setMaterialName(name, group);
+        }
 
         /** @overload
         @param subIndex The index of the subsection to alter
         @param mat The new material to use
         */
-        virtual void setMaterial(size_t subIndex, const MaterialPtr &mat);
+        void setMaterial(size_t subIndex, const MaterialPtr& mat)
+        {
+            mSectionList.at(subIndex)->setMaterial(mat);
+        }
 
         /** Convert this object to a Mesh. 
         @remarks
@@ -515,11 +521,9 @@ namespace Ogre
         */
         const std::vector<ManualObjectSection*>& getSections() const { return mSectionList; }
 
-        /// @deprecated use getSections()
-        OGRE_DEPRECATED ManualObjectSection* getSection(unsigned int index) const;
+        ManualObjectSection* getSection(size_t index) const { return mSectionList.at(index); }
 
-        /// @deprecated use getSections()
-        OGRE_DEPRECATED unsigned int getNumSections(void) const;
+        size_t getNumSections(void) const { return mSectionList.size(); }
 
 
         /** Sets whether or not to keep the original declaration order when 
@@ -552,10 +556,8 @@ namespace Ogre
         EdgeData* getEdgeList(void) override;
         /** Implement this method to enable stencil shadows. */
         const ShadowRenderableList& getShadowVolumeRenderableList(
-            ShadowTechnique shadowTechnique, const Light* light, 
-            HardwareIndexBufferSharedPtr* indexBuffer, size_t* indexBufferUsedSize,
-            bool extrudeVertices, Real extrusionDist, unsigned long flags = 0);
-
+            const Light* light, const HardwareIndexBufferPtr& indexBuffer,
+            size_t& indexBufferUsedSize, float extrusionDist, int flags = 0) override;
 
         /// Built, renderable section of geometry
         class _OgreExport ManualObjectSection : public Renderable, public MovableAlloc
@@ -612,29 +614,6 @@ namespace Ogre
             void convertToSubMesh(SubMesh* sm) const;
                     
         };
-        /** Nested class to allow shadows. */
-        class _OgreExport ManualObjectSectionShadowRenderable : public ShadowRenderable
-        {
-        protected:
-            ManualObject* mParent;
-            // Shared link to position buffer
-            HardwareVertexBufferSharedPtr mPositionBuffer;
-            // Shared link to w-coord buffer (optional)
-            HardwareVertexBufferSharedPtr mWBuffer;
-
-        public:
-            ManualObjectSectionShadowRenderable(ManualObject* parent, 
-                HardwareIndexBufferSharedPtr* indexBuffer, const VertexData* vertexData, 
-                bool createSeparateLightCap, bool isLightCap = false);
-            ~ManualObjectSectionShadowRenderable();
-            void getWorldTransforms(Matrix4* xform) const override;
-            HardwareVertexBufferSharedPtr getPositionBuffer(void) { return mPositionBuffer; }
-            HardwareVertexBufferSharedPtr getWBuffer(void) { return mWBuffer; }
-            virtual void rebindIndexBuffer(const HardwareIndexBufferSharedPtr& indexBuffer) override;
-
-            
-
-        };
 
         typedef std::vector<ManualObjectSection*> SectionList;
 
@@ -643,7 +622,7 @@ namespace Ogre
             bool debugRenderables = false);
         
         
-    protected:
+    private:
         /// Dynamic?
         HardwareBuffer::Usage mBufferUsage;
         /// List of subsections

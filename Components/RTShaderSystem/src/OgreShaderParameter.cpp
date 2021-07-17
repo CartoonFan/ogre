@@ -256,7 +256,7 @@ static GpuConstantType getGCType(const GpuProgramParameters::AutoConstantDefinit
 }
 
 //-----------------------------------------------------------------------
-UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoType, Real fAutoConstantData, size_t size)
+UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoType, float fAutoConstantData, size_t size)
 {
     auto parameterDef = GpuProgramParameters::getAutoConstantDefinition(autoType);
     assert(parameterDef);
@@ -283,7 +283,7 @@ UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoTy
 }
 
 //-----------------------------------------------------------------------
-UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoType, Real fAutoConstantData, size_t size, GpuConstantType type)
+UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoType, float fAutoConstantData, size_t size, GpuConstantType type)
 {
     auto parameterDef = GpuProgramParameters::getAutoConstantDefinition(autoType);
     assert(parameterDef);
@@ -310,7 +310,7 @@ UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoTy
 }
 
 //-----------------------------------------------------------------------
-UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoType, size_t nAutoConstantData, size_t size)
+UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoType, uint32 nAutoConstantData, size_t size)
 {
     auto parameterDef = GpuProgramParameters::getAutoConstantDefinition(autoType);
     assert(parameterDef);
@@ -333,7 +333,7 @@ UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoTy
 }
 
 //-----------------------------------------------------------------------
-UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoType, size_t nAutoConstantData, size_t size, GpuConstantType type)
+UniformParameter::UniformParameter(GpuProgramParameters::AutoConstantType autoType, uint32 nAutoConstantData, size_t size, GpuConstantType type)
 {
     auto parameterDef = GpuProgramParameters::getAutoConstantDefinition(autoType);
     assert(parameterDef);
@@ -557,70 +557,6 @@ ParameterPtr ParameterFactory::createOutTexcoord(GpuConstantType type, int index
     }
 
     return ParameterPtr();
-}
-
-//-----------------------------------------------------------------------
-ParameterPtr ParameterFactory::createInTexcoord1(int index, Parameter::Content content)
-{
-    return ParameterPtr(OGRE_NEW Parameter(GCT_FLOAT1, "iTexcoord1_" + StringConverter::toString(index), 
-        Parameter::SPS_TEXTURE_COORDINATES, index, 
-        content));
-}
-
-//-----------------------------------------------------------------------
-ParameterPtr ParameterFactory::createOutTexcoord1(int index, Parameter::Content content)
-{
-    return ParameterPtr(OGRE_NEW Parameter(GCT_FLOAT1, "oTexcoord1_" + StringConverter::toString(index), 
-        Parameter::SPS_TEXTURE_COORDINATES, index, 
-        content));
-}
-
-//-----------------------------------------------------------------------
-ParameterPtr ParameterFactory::createInTexcoord2(int index, Parameter::Content content)
-{
-    return ParameterPtr(OGRE_NEW Parameter(GCT_FLOAT2, "iTexcoord2_" + StringConverter::toString(index), 
-        Parameter::SPS_TEXTURE_COORDINATES, index, 
-        content));
-}
-
-//-----------------------------------------------------------------------
-ParameterPtr ParameterFactory::createOutTexcoord2(int index, Parameter::Content content)
-{
-    return ParameterPtr(OGRE_NEW Parameter(GCT_FLOAT2, "oTexcoord2_" + StringConverter::toString(index), 
-        Parameter::SPS_TEXTURE_COORDINATES, index, 
-        content));
-}
-
-//-----------------------------------------------------------------------
-ParameterPtr ParameterFactory::createInTexcoord3(int index, Parameter::Content content)
-{
-    return ParameterPtr(OGRE_NEW Parameter(GCT_FLOAT3, "iTexcoord3_" + StringConverter::toString(index), 
-        Parameter::SPS_TEXTURE_COORDINATES, index, 
-        content));
-}
-
-//-----------------------------------------------------------------------
-ParameterPtr ParameterFactory::createOutTexcoord3(int index, Parameter::Content content)
-{
-    return ParameterPtr(OGRE_NEW Parameter(GCT_FLOAT3, "oTexcoord3_" + StringConverter::toString(index), 
-        Parameter::SPS_TEXTURE_COORDINATES, index, 
-        content));
-}
-
-//-----------------------------------------------------------------------
-ParameterPtr ParameterFactory::createInTexcoord4(int index, Parameter::Content content)
-{
-    return ParameterPtr(OGRE_NEW Parameter(GCT_FLOAT4, "iTexcoord4_" + StringConverter::toString(index), 
-        Parameter::SPS_TEXTURE_COORDINATES, index, 
-        content));
-}
-
-//-----------------------------------------------------------------------
-ParameterPtr ParameterFactory::createOutTexcoord4(int index, Parameter::Content content)
-{
-    return ParameterPtr(OGRE_NEW Parameter(GCT_FLOAT4, "oTexcoord4_" + StringConverter::toString(index), 
-        Parameter::SPS_TEXTURE_COORDINATES, index, 
-        content));
 }
 
 //-----------------------------------------------------------------------

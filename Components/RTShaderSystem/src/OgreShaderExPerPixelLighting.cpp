@@ -86,14 +86,19 @@ bool PerPixelLighting::resolveGlobalParameters(ProgramSet* programSet)
     // Get surface shininess.
     mSurfaceShininess = psProgram->resolveParameter(GpuProgramParameters::ACT_SURFACE_SHININESS);
 
-    // Resolve input vertex shader normal.
-    mVSInNormal = vsMain->resolveInputParameter(Parameter::SPC_NORMAL_OBJECT_SPACE);
+    mViewNormal = psMain->getLocalParameter(Parameter::SPC_NORMAL_VIEW_SPACE);
 
-    // Resolve output vertex shader normal.
-    mVSOutNormal = vsMain->resolveOutputParameter(Parameter::SPC_NORMAL_VIEW_SPACE);
+    if(!mViewNormal)
+    {
+        // Resolve input vertex shader normal.
+        mVSInNormal = vsMain->resolveInputParameter(Parameter::SPC_NORMAL_OBJECT_SPACE);
 
-    // Resolve input pixel shader normal.
-    mViewNormal = psMain->resolveInputParameter(mVSOutNormal);
+        // Resolve output vertex shader normal.
+        mVSOutNormal = vsMain->resolveOutputParameter(Parameter::SPC_NORMAL_VIEW_SPACE);
+
+        // Resolve input pixel shader normal.
+        mViewNormal = psMain->resolveInputParameter(mVSOutNormal);
+    }
 
     mInDiffuse = psMain->getInputParameter(Parameter::SPC_COLOR_DIFFUSE);
     if (mInDiffuse.get() == NULL)
@@ -137,7 +142,7 @@ bool PerPixelLighting::resolvePerLightParameters(ProgramSet* programSet)
         switch (mLightParamsList[i].mType)
         {
         case Light::LT_DIRECTIONAL:
-            mLightParamsList[i].mDirection = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_POSITION_VIEW_SPACE, i);
+            mLightParamsList[i].mDirection = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_DIRECTION_VIEW_SPACE, i);
             mLightParamsList[i].mPSInDirection = mLightParamsList[i].mDirection;
             needViewPos = mSpecularEnable || needViewPos;
             break;
@@ -151,7 +156,7 @@ bool PerPixelLighting::resolvePerLightParameters(ProgramSet* programSet)
 
         case Light::LT_SPOTLIGHT:
             mLightParamsList[i].mPosition = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_POSITION_VIEW_SPACE, i);
-            mLightParamsList[i].mDirection = psProgram->resolveParameter(GCT_FLOAT4, -1, (uint16)GPV_LIGHTS, "light_direction_view_space");
+            mLightParamsList[i].mDirection = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_DIRECTION_VIEW_SPACE, i);
             mLightParamsList[i].mPSInDirection = mLightParamsList[i].mDirection;
             mLightParamsList[i].mAttenuatParams = psProgram->resolveParameter(GpuProgramParameters::ACT_LIGHT_ATTENUATION, i);
             mLightParamsList[i].mSpotParams = psProgram->resolveParameter(GpuProgramParameters::ACT_SPOTLIGHT_PARAMS, i);
@@ -256,7 +261,7 @@ bool PerPixelLighting::addFunctionInvocations(ProgramSet* programSet)
 void PerPixelLighting::addVSInvocation(const FunctionStageRef& stage)
 {
     // Transform normal in view space.
-    if(!mLightParamsList.empty())
+    if(!mLightParamsList.empty() && mVSInNormal)
         stage.callFunction(FFP_FUNC_TRANSFORM, mWorldViewITMatrix, mVSInNormal, mVSOutNormal);
 
     // Transform view space position if need to.

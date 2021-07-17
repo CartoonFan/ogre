@@ -273,7 +273,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     Node* Node::createChild(const String& name, const Vector3& inTranslate, const Quaternion& inRotate)
     {
-        OgreAssert(!name.empty(), "name must not be empty");
+        OgreAssert(!name.empty(), "");
         Node* newNode = createChildImpl(name);
         newNode->setPosition(inTranslate);
         newNode->setOrientation(inRotate);
@@ -309,28 +309,19 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     Node* Node::removeChild(unsigned short index)
     {
-        if (index < mChildren.size())
-        {
-            ChildNodeMap::iterator i = mChildren.begin();
-            i += index;
-            Node* ret = *i;
+        OgreAssert(index < mChildren.size(), "");
 
-            // cancel any pending update
-            cancelUpdate(ret);
+        ChildNodeMap::iterator i = mChildren.begin();
+        i += index;
+        Node* ret = *i;
 
-            std::swap(*i, mChildren.back());
-            mChildren.pop_back();
-            ret->setParent(NULL);
-            return ret;
-        }
-        else
-        {
-            OGRE_EXCEPT(
-                Exception::ERR_INVALIDPARAMS,
-                "Child index out of bounds.",
-                "Node::getChild" );
-        }
-        return 0;
+        // cancel any pending update
+        cancelUpdate(ret);
+
+        std::swap(*i, mChildren.back());
+        mChildren.pop_back();
+        ret->setParent(NULL);
+        return ret;
     }
     //-----------------------------------------------------------------------
     Node* Node::removeChild(Node* child)
@@ -636,7 +627,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     Node* Node::removeChild(const String& name)
     {
-        OgreAssert(!name.empty(), "name must not be empty");
+        OgreAssert(!name.empty(), "");
         NodeNameExists pred = {name};
         ChildNodeMap::iterator i = std::find_if(mChildren.begin(), mChildren.end(), pred);
 
@@ -749,81 +740,5 @@ namespace Ogre {
         }
         msQueuedUpdates.clear();
     }
-    //---------------------------------------------------------------------
-    Node::DebugRenderable* Node::getDebugRenderable(Real scaling)
-    {
-        if (!mDebug)
-        {
-            mDebug.reset(new DebugRenderable(this));
-        }
-        mDebug->setScaling(scaling);
-        return mDebug.get();
-    }
-    //---------------------------------------------------------------------
-    //-----------------------------------------------------------------------
-    Node::DebugRenderable::DebugRenderable(Node* parent)
-        : mParent(parent)
-    {
-        String matName = "Ogre/Debug/AxesMat";
-        mMat = MaterialManager::getSingleton().getByName(matName, ResourceGroupManager::INTERNAL_RESOURCE_GROUP_NAME);
-        if (!mMat)
-        {
-            mMat = MaterialManager::getSingleton().create(matName, ResourceGroupManager::INTERNAL_RESOURCE_GROUP_NAME);
-            Pass* p = mMat->getTechnique(0)->getPass(0);
-            p->setLightingEnabled(false);
-            p->setPolygonModeOverrideable(false);
-            p->setVertexColourTracking(TVC_AMBIENT);
-            p->setSceneBlending(SBT_TRANSPARENT_ALPHA);
-            p->setCullingMode(CULL_NONE);
-            p->setDepthWriteEnabled(false);
-            p->setDepthCheckEnabled(false);
-        }
-
-        String meshName = "Ogre/Debug/AxesMesh";
-        mMeshPtr = MeshManager::getSingleton().getByName(meshName, ResourceGroupManager::INTERNAL_RESOURCE_GROUP_NAME);
-        if (!mMeshPtr->isLoaded())
-        {
-            mMeshPtr->load();
-            mMeshPtr->getSubMeshes()[0]->setMaterial(mMat);
-        }
-
-    }
-    //---------------------------------------------------------------------
-    Node::DebugRenderable::~DebugRenderable()
-    {
-    }
-    //-----------------------------------------------------------------------
-    const MaterialPtr& Node::DebugRenderable::getMaterial(void) const
-    {
-        return mMat;
-    }
-    //---------------------------------------------------------------------
-    void Node::DebugRenderable::getRenderOperation(RenderOperation& op)
-    {
-        return mMeshPtr->getSubMesh(0)->_getRenderOperation(op);
-    }
-    //-----------------------------------------------------------------------
-    void Node::DebugRenderable::getWorldTransforms(Matrix4* xform) const
-    {
-        // Assumes up to date
-        *xform = mParent->_getFullTransform();
-        if (!Math::RealEqual(mScaling, 1.0))
-        {
-            *xform = (*xform) * Affine3::getScale(mScaling, mScaling, mScaling);
-        }
-    }
-    //-----------------------------------------------------------------------
-    Real Node::DebugRenderable::getSquaredViewDepth(const Camera* cam) const
-    {
-        return mParent->getSquaredViewDepth(cam);
-    }
-    //-----------------------------------------------------------------------
-    const LightList& Node::DebugRenderable::getLights(void) const
-    {
-        // Nodes should not be lit by the scene, this will not get called
-        static LightList ll;
-        return ll;
-    }
-
 }
 

@@ -105,12 +105,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void Mesh::destroySubMesh(unsigned short index)
     {
-        if (index >= mSubMeshList.size())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                        "Index out of bounds.",
-                        "Mesh::removeSubMesh");
-        }
+        OgreAssert(index < mSubMeshList.size(), "");
         SubMeshList::iterator i = mSubMeshList.begin();
         std::advance(i, index);
         OGRE_DELETE *i;
@@ -232,16 +227,10 @@ namespace Ogre {
         String baseName, strExt;
         StringUtil::splitBaseFilename(mName, baseName, strExt);
         auto codec = Codec::getCodec(strExt);
-        OgreAssert(codec, ("No codec found to load "+mName).c_str());
+        if (!codec)
+            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "No codec found to load " + mName);
 
         codec->decode(data, this);
-
-        /* check all submeshes to see if their materials should be
-           updated.  If the submesh has texture aliases that match those
-           found in the current material then a new material is created using
-           the textures from the submesh.
-        */
-        updateMaterialForAllSubMeshes();
     }
 
     //-----------------------------------------------------------------------
@@ -2403,22 +2392,9 @@ namespace Ogre {
         return retPose;
     }
     //---------------------------------------------------------------------
-    Pose* Mesh::getPose(ushort index)
+    Pose* Mesh::getPose(const String& name) const
     {
-        if (index >= mPoseList.size())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "Index out of bounds",
-                "Mesh::getPose");
-        }
-
-        return mPoseList[index];
-
-    }
-    //---------------------------------------------------------------------
-    Pose* Mesh::getPose(const String& name)
-    {
-        for (PoseList::iterator i = mPoseList.begin(); i != mPoseList.end(); ++i)
+        for (auto i = mPoseList.begin(); i != mPoseList.end(); ++i)
         {
             if ((*i)->getName() == name)
                 return *i;
@@ -2433,12 +2409,7 @@ namespace Ogre {
     //---------------------------------------------------------------------
     void Mesh::removePose(ushort index)
     {
-        if (index >= mPoseList.size())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "Index out of bounds",
-                "Mesh::removePose");
-        }
+        OgreAssert(index < mPoseList.size(), "");
         PoseList::iterator i = mPoseList.begin();
         std::advance(i, index);
         OGRE_DELETE *i;
@@ -2486,17 +2457,6 @@ namespace Ogre {
     const PoseList& Mesh::getPoseList(void) const
     {
         return mPoseList;
-    }
-    //---------------------------------------------------------------------
-    void Mesh::updateMaterialForAllSubMeshes(void)
-    {
-        // iterate through each sub mesh and request the submesh to update its material
-        std::vector<SubMesh*>::iterator subi;
-        for (subi = mSubMeshList.begin(); subi != mSubMeshList.end(); ++subi)
-        {
-            (*subi)->updateMaterialUsingTextureAliases();
-        }
-
     }
     //---------------------------------------------------------------------
     const LodStrategy *Mesh::getLodStrategy() const

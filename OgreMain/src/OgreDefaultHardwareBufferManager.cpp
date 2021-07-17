@@ -82,29 +82,16 @@ namespace Ogre {
         DefaultHardwareBufferManagerBase::createVertexBuffer(size_t vertexSize, 
         size_t numVerts, HardwareBuffer::Usage usage, bool useShadowBuffer)
     {
-        DefaultHardwareVertexBuffer* vb = OGRE_NEW DefaultHardwareVertexBuffer(this, vertexSize, numVerts, usage);
-        return HardwareVertexBufferSharedPtr(vb);
+        return std::make_shared<HardwareVertexBuffer>(this, vertexSize, numVerts,
+                                                      new DefaultHardwareBuffer(vertexSize * numVerts));
     }
     //-----------------------------------------------------------------------
     HardwareIndexBufferSharedPtr 
         DefaultHardwareBufferManagerBase::createIndexBuffer(HardwareIndexBuffer::IndexType itype, 
         size_t numIndexes, HardwareBuffer::Usage usage, bool useShadowBuffer)
     {
-        DefaultHardwareIndexBuffer* ib = OGRE_NEW DefaultHardwareIndexBuffer(itype, numIndexes, usage);
-        return HardwareIndexBufferSharedPtr(ib);
-    }
-    HardwareUniformBufferSharedPtr 
-        DefaultHardwareBufferManagerBase::createUniformBuffer(size_t sizeBytes, 
-                                    HardwareBuffer::Usage usage, bool useShadowBuffer, const String& name)
-    {
-        DefaultHardwareUniformBuffer* ub = OGRE_NEW DefaultHardwareUniformBuffer(this, sizeBytes, usage, useShadowBuffer);
-        return HardwareUniformBufferSharedPtr(ub);
-    }
-    HardwareCounterBufferSharedPtr
-    DefaultHardwareBufferManagerBase::createCounterBuffer(size_t sizeBytes,
-                                                          HardwareBuffer::Usage usage, bool useShadowBuffer, const String& name)
-    {
-        DefaultHardwareUniformBuffer* ub = OGRE_NEW DefaultHardwareUniformBuffer(this, sizeBytes, usage, useShadowBuffer);
-        return HardwareCounterBufferSharedPtr(ub);
+        return std::make_shared<HardwareIndexBuffer>(
+            this, itype, numIndexes,
+            new DefaultHardwareBuffer(HardwareIndexBuffer::indexSize(itype) * numIndexes));
     }
 }

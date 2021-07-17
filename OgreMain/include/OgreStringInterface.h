@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include "OgrePrerequisites.h"
 #include "OgreCommon.h"
 #include "OgreHeaderPrefix.h"
+#include "OgreStringConverter.h"
 
 namespace Ogre {
 
@@ -42,7 +43,7 @@ namespace Ogre {
     *  @{
     */
 
-    /// List of parameter types available
+    /// @deprecated do not use
     enum ParameterType
     {
         PT_BOOL,
@@ -61,16 +62,15 @@ namespace Ogre {
         PT_COLOURVALUE
     };
 
-    /// Definition of a parameter supported by a StringInterface class, for introspection
+    /// @deprecated directly pass parameter name
     class _OgreExport ParameterDef
     {
     public:
         String name;
-        ParameterType paramType;
-        ParameterDef(const String& newName, const String& newDescription, ParameterType newType)
-            : name(newName), paramType(newType) {}
+        ParameterDef(const String& newName, const String& = "", ParameterType = PT_INT)
+            : name(newName) {}
     };
-    typedef std::vector<ParameterDef> ParameterList;
+    typedef std::vector<String> ParameterList;
 
     /** Abstract class which is command object which gets/sets parameters.*/
     class _OgreExport ParamCommand
@@ -83,11 +83,41 @@ namespace Ogre {
     };
     typedef std::map<String, ParamCommand* > ParamCommandMap;
 
+#ifndef SWIG
+    /** Generic ParamCommand implementation
+     stores pointers to the class getter and setter functions */
+    template <typename _Class, typename Param, Param (_Class::*getter)() const, void (_Class::*setter)(Param)>
+    class SimpleParamCommand : public ParamCommand {
+    public:
+        String doGet(const void* target) const {
+            return StringConverter::toString((static_cast<const _Class*>(target)->*getter)());
+        }
+
+        void doSet(void* target, const String& val) {
+            typename std::decay<Param>::type tmp;
+            StringConverter::parse(val, tmp);
+            (static_cast<_Class*>(target)->*setter)(tmp);
+        }
+    };
+
+    /// specialization for strings
+    template <typename _Class, const String& (_Class::*getter)() const, void (_Class::*setter)(const String&)>
+    class SimpleParamCommand<_Class, const String&, getter, setter> : public ParamCommand {
+    public:
+        String doGet(const void* target) const {
+            return (static_cast<const _Class*>(target)->*getter)();
+        }
+
+        void doSet(void* target, const String& val) {
+            (static_cast<_Class*>(target)->*setter)(val);
+        }
+    };
+#endif
+
     /** Class to hold a dictionary of parameters for a single class. */
     class _OgreExport ParamDictionary
     {
         friend class StringInterface;
-    protected:
         /// Definitions of parameters
         ParameterList mParamDefs;
 
@@ -101,12 +131,18 @@ namespace Ogre {
         ParamDictionary();
         ~ParamDictionary();
         /** Method for adding a parameter definition for this class. 
-        @param paramDef A ParameterDef object defining the parameter
+        @param name The name of the parameter
         @param paramCmd Pointer to a ParamCommand subclass to handle the getting / setting of this parameter.
             NB this class will not destroy this on shutdown, please ensure you do
 
         */
-        void addParameter(const ParameterDef& paramDef, ParamCommand* paramCmd);
+        void addParameter(const String& name, ParamCommand* paramCmd);
+
+        /// @deprecated do not use
+        void addParameter(const ParameterDef& def, ParamCommand* paramCmd)
+        {
+            addParameter(def.name, paramCmd);
+        }
         /** Retrieves a list of parameters valid for this object. 
         @return
             A reference to a static list of ParameterDef objects.

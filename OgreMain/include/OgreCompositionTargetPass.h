@@ -29,11 +29,12 @@ THE SOFTWARE.
 #define __CompositionTargetPass_H__
 
 #include "OgrePrerequisites.h"
-#include "OgreIteratorWrapper.h"
 #include "OgreHeaderPrefix.h"
 #include "OgreCompositionPass.h"
 
 namespace Ogre {
+    template <typename T> class VectorIterator;
+
     /** \addtogroup Core
     *  @{
     */
@@ -130,14 +131,11 @@ namespace Ogre {
         /** Remove a pass. It will also be destroyed.
         */
         void removePass(size_t idx);
-        /** Get a pass.
-        @deprecated use getPasses()
-        */
-        OGRE_DEPRECATED CompositionPass *getPass(size_t idx);
+        /** Get a pass.*/
+        CompositionPass *getPass(size_t idx) const { return mPasses.at(idx); }
         /** Get the number of passes.
-        @deprecated use getPasses()
         */
-        OGRE_DEPRECATED size_t getNumPasses();
+        size_t getNumPasses() const { return mPasses.size(); }
         
         /// Get the Passes in this TargetPass
         const Passes& getPasses() const {

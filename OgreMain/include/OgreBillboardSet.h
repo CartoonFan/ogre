@@ -33,7 +33,6 @@ THE SOFTWARE.
 
 #include "OgreMovableObject.h"
 #include "OgreRenderable.h"
-#include "OgreRadixSort.h"
 #include "OgreCommon.h"
 #include "OgreResourceGroupManager.h"
 #include "OgreHeaderPrefix.h"
@@ -275,8 +274,6 @@ namespace Ogre {
             SortByDistanceFunctor(const Vector3& pos);
             float operator()(Billboard* bill) const;
         };
-
-        static RadixSort<BillboardPool, Billboard*, float> mRadixSorter;
 
         /// Use point rendering?
         bool mPointRendering;
@@ -543,11 +540,6 @@ namespace Ogre {
 
         virtual void getRenderOperation(RenderOperation& op) override;
         virtual void getWorldTransforms(Matrix4* xform) const override;
-
-        /// @deprecated do not use
-        OGRE_DEPRECATED void _notifyBillboardResized() {}
-        /// @deprecated do not use
-        OGRE_DEPRECATED void _notifyBillboardRotated() {}
 
         /** Returns whether or not billboards in this are tested individually for culling. */
         bool getCullIndividually(void) const { return mCullIndividual; }

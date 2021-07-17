@@ -33,9 +33,6 @@ THE SOFTWARE.
 #include <algorithm>
 
 namespace Ogre {
-    // Init statics
-    RadixSort<BillboardSet::BillboardPool, Billboard*, float> BillboardSet::mRadixSorter;
-
     //-----------------------------------------------------------------------
     BillboardSet::BillboardSet() :
         mBoundingRadius(0.0f), 
@@ -133,7 +130,6 @@ namespace Ogre {
         newBill->setRotation(Radian(0));
         newBill->setTexcoordIndex(0);
         newBill->resetDimensions();
-        newBill->_notifyOwner(this);
 
         // Merge into bounds
         Real adjust = std::max(mDefaultWidth, mDefaultHeight);
@@ -193,6 +189,8 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void BillboardSet::_sortBillboards( Camera* cam)
     {
+        static RadixSort<BillboardPool, Billboard*, float> mRadixSorter;
+
         switch (_getSortMode())
         {
         case SM_DIRECTION:
@@ -838,7 +836,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     void BillboardSet::genPointVertices(const Billboard& bb)
     {
-        RGBA colour = bb.mColour.getAsBYTE();
+        RGBA colour = bb.mColour;
         // Single vertex per billboard, ignore offsets
         // position
         *mLockPtr++ = bb.mPosition.x;
@@ -850,7 +848,7 @@ namespace Ogre {
     }
     void BillboardSet::genQuadVertices(const Vector3* const offsets, const Billboard& bb)
     {
-        RGBA colour = bb.mColour.getAsBYTE();
+        RGBA colour = bb.mColour;
 
         // Texcoords
         assert( bb.mUseTexcoordRect || bb.mTexcoordIndex < mTextureCoords.size() );

@@ -51,7 +51,7 @@ namespace Ogre
     {
     public:
         typedef std::vector<PageContentCollection*> ContentCollectionList;
-    protected:
+    private:
         PageID mID;
         PagedWorldSection* mParent;
         unsigned long mFrameLastHeld;
@@ -71,18 +71,11 @@ namespace Ogre
         struct PageRequest
         {
             Page* srcPage;
-            OGRE_DEPRECATED _OgrePagingExport friend std::ostream& operator<<(std::ostream& o, const PageRequest& r)
-            { return o; }       
-
             PageRequest(Page* p): srcPage(p) {}
         };
         struct PageResponse
         {
             PageData* pageData;
-
-            OGRE_DEPRECATED _OgrePagingExport friend std::ostream& operator<<(std::ostream& o, const PageResponse& r)
-            { return o; }       
-
             PageResponse() : pageData(0) {}
         };
 

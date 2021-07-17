@@ -55,7 +55,9 @@ namespace Ogre
     mShowPortals(false),
     mZoneFactoryManager(0),
     mActiveCameraZone(0)
-    { }
+    {
+        addShadowTextureListener(this);
+    }
 
     PCZSceneManager::~PCZSceneManager()
     {
@@ -1039,30 +1041,7 @@ namespace Ogre
                 }
             }
 
-            // Sort the lights if using texture shadows, since the first 'n' will be
-            // used to generate shadow textures and we should pick the most appropriate
-            if (isShadowTechniqueTextureBased())
-            {
-                // Allow a ShadowListener to override light sorting
-                // Reverse iterate so last takes precedence
-                bool overridden = false;
-                for (ListenerList::reverse_iterator ri = mListeners.rbegin();
-                    ri != mListeners.rend(); ++ri)
-                {
-                    overridden = (*ri)->sortLightsAffectingFrustum(mLightsAffectingFrustum);
-                    if (overridden)
-                        break;
-                }
-                if (!overridden)
-                {
-                    // default sort (stable to preserve directional light ordering
-                    std::stable_sort(
-                        mLightsAffectingFrustum.begin(), mLightsAffectingFrustum.end(), 
-                        lightsForShadowTextureLess());
-                }
-                
-            }
-
+            mShadowRenderer.sortLightsAffectingFrustum(mLightsAffectingFrustum);
             // Use swap instead of copy operator for efficiently
             mCachedLightInfos.swap(mTestLightInfos);
 
@@ -1087,7 +1066,7 @@ namespace Ogre
         }
     }
     //---------------------------------------------------------------------
-    void PCZSceneManager::fireShadowTexturesPreCaster(Light* light, Camera* camera, size_t iteration)
+    void PCZSceneManager::shadowTextureCasterPreViewProj(Light* light, Camera* camera, size_t iteration)
     {
         PCZSceneNode* camNode = (PCZSceneNode*)camera->getParentSceneNode();
 
@@ -1104,8 +1083,6 @@ namespace Ogre
             if (camNode->getHomeZone() != lightZone)
                 addPCZSceneNode(camNode, lightZone);
         }
-
-        SceneManager::fireShadowTexturesPreCaster(light, camera, iteration);
     }
 
     /* Attempt to automatically connect unconnected portals to proper target zones 

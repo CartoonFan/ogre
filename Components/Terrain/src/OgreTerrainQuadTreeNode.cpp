@@ -47,7 +47,7 @@ namespace Ogre
     //---------------------------------------------------------------------
     TerrainQuadTreeNode::TerrainQuadTreeNode(Terrain* terrain, 
         TerrainQuadTreeNode* parent, uint16 xoff, uint16 yoff, uint16 size, 
-        uint16 lod, uint16 depth, uint16 quadrant)
+        uint16 lod, uint16 depth)
         : mTerrain(terrain)
         , mParent(parent)
         , mOffsetX(xoff)
@@ -57,7 +57,6 @@ namespace Ogre
         , mSize(size)
         , mBaseLod(lod)
         , mDepth(depth)
-        , mQuadrant(quadrant)
         , mBoundingRadius(0)
         , mCurrentLod(-1)
         , mMaterialLodIndex(0)
@@ -75,10 +74,10 @@ namespace Ogre
             uint16 childLod = lod - 1; // LOD levels decrease down the tree (higher detail)
             uint16 childDepth = depth + 1;
             // create children
-            mChildren[0] = OGRE_NEW TerrainQuadTreeNode(terrain, this, xoff, yoff, childSize, childLod, childDepth, 0);
-            mChildren[1] = OGRE_NEW TerrainQuadTreeNode(terrain, this, xoff + childOff, yoff, childSize, childLod, childDepth, 1);
-            mChildren[2] = OGRE_NEW TerrainQuadTreeNode(terrain, this, xoff, yoff + childOff, childSize, childLod, childDepth, 2);
-            mChildren[3] = OGRE_NEW TerrainQuadTreeNode(terrain, this, xoff + childOff, yoff + childOff, childSize, childLod, childDepth, 3);
+            mChildren[0] = OGRE_NEW TerrainQuadTreeNode(terrain, this, xoff, yoff, childSize, childLod, childDepth);
+            mChildren[1] = OGRE_NEW TerrainQuadTreeNode(terrain, this, xoff + childOff, yoff, childSize, childLod, childDepth);
+            mChildren[2] = OGRE_NEW TerrainQuadTreeNode(terrain, this, xoff, yoff + childOff, childSize, childLod, childDepth);
+            mChildren[3] = OGRE_NEW TerrainQuadTreeNode(terrain, this, xoff + childOff, yoff + childOff, childSize, childLod, childDepth);
 
             LodLevel* ll = OGRE_NEW LodLevel();
             // non-leaf nodes always render with minBatchSize vertices
@@ -500,15 +499,13 @@ namespace Ogre
     void TerrainQuadTreeNode::updateVertexData(bool positions, bool deltas, 
         const Rect& rect, bool cpuData)
     {
-        if (rect.left <= mBoundaryX || rect.right > mOffsetX
-            || rect.top <= mBoundaryY || rect.bottom > mOffsetY)
+        //Check that we really intersect the dirty rect. This avoid assertion errors further down the line.
+        Rect updateRect = rect.intersect(Rect(mOffsetX, mOffsetY, mBoundaryX, mBoundaryY));
+        if (!updateRect.isNull())
         {
             // Do we have vertex data?
             if (mVertexDataRecord)
             {
-                // Trim to our bounds
-                Rect updateRect = rect.intersect(Rect(mOffsetX, mOffsetY, mBoundaryX, mBoundaryY));
-
                 // update the GPU buffer directly
                 // TODO: do we have no use for CPU vertex data after initial load?
                 // if so, destroy it to free RAM, this should be fast enough to 
@@ -748,14 +745,14 @@ namespace Ogre
 
         // skirt rows
         // clamp rows to skirt spacing (round up)
-        long skirtStartX = rect.left;
-        long skirtStartY = rect.top;
+        int skirtStartX = rect.left;
+        int skirtStartY = rect.top;
         // for rows, clamp Y to skirt frequency, X to inc (LOD resolution vs top)
         if (skirtStartY % skirtSpacing)
             skirtStartY += skirtSpacing - (skirtStartY % skirtSpacing);
         if (skirtStartX % inc)
             skirtStartX += inc - (skirtStartX % inc);
-        skirtStartY = std::max(skirtStartY, (long)mOffsetY);
+        skirtStartY = std::max(skirtStartY, (int)mOffsetY);
         pBaseHeight = mTerrain->getHeightData(skirtStartX, skirtStartY);
         if (posbuf)
         {
@@ -818,7 +815,7 @@ namespace Ogre
         skirtStartY = rect.top;
         if (skirtStartY % inc)
             skirtStartY += inc - (skirtStartY % inc);
-        skirtStartX = std::max(skirtStartX, (long)mOffsetX);
+        skirtStartX = std::max(skirtStartX, (int)mOffsetX);
         if (posbuf)
         {
             // position dest buffer just after the main vertex data and skirt rows
@@ -1143,11 +1140,6 @@ namespace Ogre
     {
         return x >= mOffsetX && x < mBoundaryX && 
             y >= mOffsetY && y < mBoundaryY;
-    }
-    //---------------------------------------------------------------------
-    const AxisAlignedBox& TerrainQuadTreeNode::getAABB() const
-    {
-        return mAABB;
     }
     //---------------------------------------------------------------------
     Real TerrainQuadTreeNode::getBoundingRadius() const

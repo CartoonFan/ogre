@@ -14,7 +14,7 @@
 # and provide build configuration options.
 ######################################################################
 
-cmake_minimum_required(VERSION 3.3.0)
+cmake_minimum_required(VERSION 3.10.0)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,11 +58,11 @@ if (APPLE AND NOT ANDROID)
   add_definitions(-D__ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES=0)
 endif ()
 
-project(OGRE VERSION 1.12.12)
+project(OGRE VERSION 13.0.0)
 
 # extra version info
 set(OGRE_VERSION_SUFFIX "")
-set(OGRE_VERSION_NAME "Rhagorthua")
+set(OGRE_VERSION_NAME "Tsathoggua")
 
 # legacy defines
 set(OGRE_SOVERSION ${OGRE_VERSION})
@@ -304,7 +304,7 @@ set(OGRE_RESOURCEMANAGER_STRICT "2" CACHE STRING
   ")
 set_property(CACHE OGRE_RESOURCEMANAGER_STRICT PROPERTY STRINGS 0 1 2)
 
-option(OGRE_NODELESS_POSITIONING "use Lights and Cameras without attaching them to nodes [DEPRECATED]" TRUE)
+option(OGRE_NODELESS_POSITIONING "use Lights and Cameras without attaching them to nodes [DEPRECATED]" FALSE)
 
 cmake_dependent_option(OGRE_BUILD_RENDERSYSTEM_D3D9 "Build Direct3D9 RenderSystem" TRUE "WIN32;DirectX9_FOUND;NOT WINDOWS_STORE;NOT WINDOWS_PHONE" FALSE)
 cmake_dependent_option(OGRE_BUILD_RENDERSYSTEM_D3D11 "Build Direct3D11 RenderSystem" TRUE "WIN32;DirectX11_FOUND OR WINDOWS_STORE OR WINDOWS_PHONE" FALSE)
@@ -325,11 +325,11 @@ cmake_dependent_option(OGRE_BUILD_COMPONENT_TERRAIN "Build Terrain component" TR
 cmake_dependent_option(OGRE_BUILD_COMPONENT_VOLUME "Build Volume component" TRUE "" FALSE)
 cmake_dependent_option(OGRE_BUILD_COMPONENT_PROPERTY "Build Property component" TRUE "" FALSE)
 cmake_dependent_option(OGRE_BUILD_PLUGIN_CG "Build Cg plugin" TRUE "Cg_FOUND;NOT APPLE_IOS;NOT WINDOWS_STORE;NOT WINDOWS_PHONE" FALSE)
-cmake_dependent_option(OGRE_BUILD_COMPONENT_OVERLAY "Build Overlay component" TRUE "FREETYPE_FOUND" FALSE)
+cmake_dependent_option(OGRE_BUILD_PLUGIN_GLSLANG "Build glslang plugin" TRUE "SPIRV-Tools_FOUND" FALSE) # no way to determine whether glslang is present
+option(OGRE_BUILD_COMPONENT_OVERLAY "Build Overlay component" TRUE)
 
 cmake_dependent_option(OGRE_BUILD_COMPONENT_OVERLAY_IMGUI "Include dear imgui in Overlays" TRUE "OGRE_BUILD_COMPONENT_OVERLAY" FALSE)
 
-option(OGRE_BUILD_COMPONENT_HLMS "Build HLMS component" FALSE)
 cmake_dependent_option(OGRE_BUILD_COMPONENT_BITES "Build OgreBites component" TRUE "OGRE_BUILD_COMPONENT_OVERLAY" FALSE)
 cmake_dependent_option(OGRE_BITES_STATIC_PLUGINS "Skip plugins.cfg and statically load plugins via OgreBites" FALSE "NOT OGRE_STATIC;OGRE_BUILD_COMPONENT_BITES" FALSE)
 cmake_dependent_option(OGRE_BUILD_COMPONENT_PYTHON "Build Python bindings" TRUE "NOT OGRE_STATIC" FALSE)
@@ -370,7 +370,7 @@ option(OGRE_CONFIG_ENABLE_PVRTC "Build PVRTC codec." FALSE)
 option(OGRE_CONFIG_ENABLE_ETC "Build ETC codec." TRUE)
 option(OGRE_CONFIG_ENABLE_ASTC "Build ASTC codec." TRUE)
 option(OGRE_CONFIG_ENABLE_QUAD_BUFFER_STEREO "Enable stereoscopic 3D support" FALSE)
-cmake_dependent_option(OGRE_CONFIG_ENABLE_ZIP "Build ZIP archive support. If you disable this option, you cannot use ZIP archives resource locations. The samples won't work." TRUE "ZZip_FOUND" FALSE)
+option(OGRE_CONFIG_ENABLE_ZIP "Build ZIP archive support. If you disable this option, you cannot use ZIP archives resource locations. The samples won't work." TRUE)
 option(OGRE_CONFIG_ENABLE_VIEWPORT_ORIENTATIONMODE "Include Viewport orientation mode support." FALSE)
 cmake_dependent_option(OGRE_CONFIG_ENABLE_GLES2_CG_SUPPORT "Enable Cg support to ES 2 render system" FALSE "OGRE_BUILD_RENDERSYSTEM_GLES2" FALSE)
 cmake_dependent_option(OGRE_CONFIG_ENABLE_GLES2_GLSL_OPTIMISER "Enable GLSL optimiser use in GLES 2 render system" FALSE "OGRE_BUILD_RENDERSYSTEM_GLES2" FALSE)
@@ -378,23 +378,24 @@ cmake_dependent_option(OGRE_CONFIG_ENABLE_GL_STATE_CACHE_SUPPORT "Enable OpenGL 
 option(OGRE_CONFIG_ENABLE_TBB_SCHEDULER "Enable TBB's scheduler initialisation/shutdown." TRUE)
 cmake_dependent_option(OGRE_CONFIG_FILESYSTEM_UNICODE "paths expected to be in UTF-8 and wchar_t file IO routines are used" TRUE "MSVC" FALSE)
 # Customise what to install
-option(OGRE_INSTALL_CMAKE "Install CMake scripts." TRUE)
 cmake_dependent_option(OGRE_INSTALL_SAMPLES "Install Ogre demos." TRUE "OGRE_BUILD_SAMPLES" FALSE)
 option(OGRE_INSTALL_TOOLS "Install Ogre tools." TRUE)
 option(OGRE_INSTALL_DOCS "Install documentation." TRUE)
-cmake_dependent_option(OGRE_INSTALL_SAMPLES_SOURCE "Install samples source files." FALSE "OGRE_BUILD_SAMPLES" FALSE)
 cmake_dependent_option(OGRE_INSTALL_PDB "Install debug pdb files" TRUE "MSVC" FALSE)
 option(OGRE_PROFILING "Enable internal instrumentation." FALSE)
 set(OGRE_PROFILING_REMOTERY_PATH "" CACHE PATH "set this to Remotery/lib to use Remotery instead of the buildin profiler")
 cmake_dependent_option(OGRE_CONFIG_STATIC_LINK_CRT "Statically link the MS CRT dlls (msvcrt)" FALSE "MSVC" FALSE)
 set(OGRE_LIB_DIRECTORY "lib${LIB_SUFFIX}" CACHE STRING "Install path for libraries, e.g. 'lib64' on some 64-bit Linux distros.")
-if (WIN32)
-	option(OGRE_INSTALL_VSPROPS "Install Visual Studio Property Page." FALSE)
-	if (OGRE_INSTALL_VSPROPS)
-		configure_file(${OGRE_TEMPLATES_DIR}/OGRE.props.in ${PROJECT_BINARY_DIR}/OGRE.props)
-		install(FILES ${PROJECT_BINARY_DIR}/OGRE.props DESTINATION "${CMAKE_INSTALL_PREFIX}")
-	endif ()
+set(OGRE_BIN_DIRECTORY "bin" CACHE STRING "Install path for binaries")
+
+cmake_dependent_option(OGRE_INSTALL_VSPROPS "Install Visual Studio Property Page." FALSE "MSVC" FALSE)
+if (OGRE_INSTALL_VSPROPS)
+  configure_file(${OGRE_TEMPLATES_DIR}/OGRE.props.in ${PROJECT_BINARY_DIR}/OGRE.props)
+  install(FILES ${PROJECT_BINARY_DIR}/OGRE.props DESTINATION "${CMAKE_INSTALL_PREFIX}")
 endif ()
+
+# provide option to install dependencies
+include(InstallDependencies)
 
 # determine threading options
 include(PrepareThreadingOptions)
@@ -422,10 +423,10 @@ mark_as_advanced(
   OGRE_CONFIG_ENABLE_GLES2_CG_SUPPORT
   OGRE_CONFIG_ENABLE_GLES2_GLSL_OPTIMISER
   OGRE_CONFIG_ENABLE_TBB_SCHEDULER
-  OGRE_INSTALL_SAMPLES_SOURCE
   OGRE_PROFILING
   OGRE_CONFIG_STATIC_LINK_CRT
   OGRE_LIB_DIRECTORY
+  OGRE_BIN_DIRECTORY
 )
 
 ###################################################################
@@ -490,15 +491,10 @@ endif ()
 add_subdirectory(Docs)
 
 # Install sample media files
-install(DIRECTORY Media/ShadowVolume DESTINATION "${OGRE_MEDIA_PATH}/")
+install(DIRECTORY Media/Main DESTINATION "${OGRE_MEDIA_PATH}/")
 install(DIRECTORY Media/RTShaderLib DESTINATION "${OGRE_MEDIA_PATH}/")
-if (OGRE_INSTALL_SAMPLES OR OGRE_INSTALL_SAMPLES_SOURCE)
+if (OGRE_INSTALL_SAMPLES)
   install(DIRECTORY Samples/Media/ DESTINATION ${OGRE_MEDIA_PATH})
-endif ()
-
-# Install CMake modules
-if (OGRE_INSTALL_CMAKE)
-  add_subdirectory(CMake)
 endif ()
 
 # Provide CPack packaging target

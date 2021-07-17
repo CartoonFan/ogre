@@ -41,7 +41,6 @@ namespace Ogre {
         , mYawFixed(false)
         , mIsInSceneGraph(false)
         , mShowBoundingBox(false)
-        , mHideBoundingBox(false)
     {
         needUpdate();
     }
@@ -100,12 +99,7 @@ namespace Ogre {
     };
     void SceneNode::attachObject(MovableObject* obj)
     {
-        if (obj->isAttached())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "Object already attached to a SceneNode or a Bone",
-                "SceneNode::attachObject");
-        }
+        OgreAssert(!obj->isAttached(), "Object already attached to a SceneNode or a Bone");
 
         obj->_notifyAttached(this);
 
@@ -120,28 +114,11 @@ namespace Ogre {
         needUpdate();
     }
     //-----------------------------------------------------------------------
-    unsigned short SceneNode::numAttachedObjects(void) const
-    {
-        return static_cast< unsigned short >( mObjectsByName.size() );
-    }
-    //-----------------------------------------------------------------------
-    MovableObject* SceneNode::getAttachedObject(unsigned short index)
-    {
-        if (index < mObjectsByName.size())
-        {
-            return mObjectsByName[index];
-        }
-        else
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Object index out of bounds.", "SceneNode::getAttachedObject");
-        }
-    }
-    //-----------------------------------------------------------------------
-    MovableObject* SceneNode::getAttachedObject(const String& name)
+    MovableObject* SceneNode::getAttachedObject(const String& name) const
     {
         // Look up 
         MovableObjectNameExists pred = {name};
-        ObjectMap::iterator i = std::find_if(mObjectsByName.begin(), mObjectsByName.end(), pred);
+        auto i = std::find_if(mObjectsByName.begin(), mObjectsByName.end(), pred);
 
         if (i == mObjectsByName.end())
         {
@@ -154,28 +131,20 @@ namespace Ogre {
     //-----------------------------------------------------------------------
     MovableObject* SceneNode::detachObject(unsigned short index)
     {
-        if (index < mObjectsByName.size())
-        {
+        OgreAssert(index < mObjectsByName.size(), "out of bounds");
+        ObjectMap::iterator i = mObjectsByName.begin();
+        i += index;
 
-            ObjectMap::iterator i = mObjectsByName.begin();
-            i += index;
+        MovableObject* ret = *i;
+        std::swap(*i, mObjectsByName.back());
+        mObjectsByName.pop_back();
 
-            MovableObject* ret = *i;
-            std::swap(*i, mObjectsByName.back());
-            mObjectsByName.pop_back();
+        ret->_notifyAttached((SceneNode*)0);
 
-            ret->_notifyAttached((SceneNode*)0);
+        // Make sure bounds get updated (must go right to the top)
+        needUpdate();
 
-            // Make sure bounds get updated (must go right to the top)
-            needUpdate();
-
-            return ret;
-        }
-        else
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Object index out of bounds.", "SceneNode::getAttchedEntity");
-        }
-
+        return ret;
     }
     //-----------------------------------------------------------------------
     MovableObject* SceneNode::detachObject(const String& name)
@@ -288,25 +257,11 @@ namespace Ogre {
         }
     }
 
-    Node::DebugRenderable* SceneNode::getDebugRenderable()
-    {
-        Vector3 hs = mWorldAABB.getHalfSize();
-        Real sz = std::min(hs.x, hs.y);
-        sz = std::min(sz, hs.z);
-        sz = std::max(sz, (Real)1.0);
-        OGRE_IGNORE_DEPRECATED_BEGIN
-        return Node::getDebugRenderable(sz);
-        OGRE_IGNORE_DEPRECATED_END
+    SceneNode::ObjectIterator SceneNode::getAttachedObjectIterator(void) {
+        return ObjectIterator(mObjectsByName.begin(), mObjectsByName.end());
     }
-
-
-    void SceneNode::_addBoundingBoxToQueue(RenderQueue* queue) {
-        // Create a WireBoundingBox if needed.
-        if (!mWireBoundingBox) {
-            mWireBoundingBox.reset(new WireBoundingBox());
-        }
-        mWireBoundingBox->setupBoundingBox(mWorldAABB);
-        queue->addRenderable(mWireBoundingBox.get());
+    SceneNode::ConstObjectIterator SceneNode::getAttachedObjectIterator(void) const {
+        return ConstObjectIterator(mObjectsByName.begin(), mObjectsByName.end());
     }
 
     //-----------------------------------------------------------------------
@@ -370,6 +325,25 @@ namespace Ogre {
 
         mChildren.clear();
         needUpdate();
+    }
+    void SceneNode::loadChildren(const String& filename)
+    {
+        String baseName, strExt;
+        StringUtil::splitBaseFilename(filename, baseName, strExt);
+        auto codec = Codec::getCodec(strExt);
+        if (!codec)
+            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "No codec found to load " + filename);
+
+        auto stream = Root::openFileStream(
+            filename, ResourceGroupManager::getSingleton().getWorldResourceGroupName());
+        codec->decode(stream, this);
+    }
+    void SceneNode::saveChildren(const String& filename)
+    {
+        String baseName, strExt;
+        StringUtil::splitBaseFilename(filename, baseName, strExt);
+        auto codec = Codec::getCodec(strExt);
+        codec->encodeToFile(this, filename);
     }
     //-----------------------------------------------------------------------
     SceneNode* SceneNode::createChildSceneNode(const Vector3& inTranslate, 

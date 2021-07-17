@@ -270,7 +270,7 @@ It is possible to enable more than one compositor instance on a viewport at the 
 
 </dd> <dt>Target</dt> <dd>
 
-This is a Ogre::RenderTarget, i.e. the place where the result of a series of render operations is sent. A target may be the final output (and this is implicit, you don’t have to declare it), or it may be an intermediate render texture, which you declare in your script with the [texture line](#compositor-texture). A target which is not the output target has a defined size and pixel format which you can control.
+This is a Ogre::RenderTarget, i.e. the canvas where the result of a series of render operations is sent. A target may be the final output (e.g. your Ogre::RenderWindow), or it may be an intermediate render texture, which you declare in your script with the @ref compositor-texture line. A target which is not the output target has a size and pixel format which you can define inside the compositor script.
 
 </dd> <dt>Output Target</dt> <dd>
 
@@ -342,8 +342,10 @@ The dimensions of the render texture. You can either specify a fixed width and h
 where &lt;factor&gt; is the amount by which you wish to multiply the size of the main target to derive the dimensions.
 @endparblock
 @param PixelFormat
-The pixel format of the render texture. This affects how much memory it will take, what colour channels will be available, and what precision you will have within those channels.
-See Ogre::PixelFormat. You can in fact repeat this element if you wish. If you do so, that means that this render texture becomes a Multiple Render Target (MRT), when the GPU writes to multiple textures at once.
+The Ogre::PixelFormat of the render texture. This affects how much memory it will take, what colour channels will be available, and what precision you will have within those channels.
+You can in fact repeat this element if you wish. If you do so, that means that this render texture becomes a Multiple Render Target (MRT), when the GPU writes to multiple textures at once.
+If you use a depth format here, the texture will be used as the depth attachment instead of the depth-buffer. Use the MRT format to specify both the depth and the colour attachments.
+
 
 @param pooled
 If present, this directive makes this texture ’pooled’ among compositor instances, which can save some memory.
@@ -437,7 +439,7 @@ Format: target\_output { }
 
 The contents of both are identical, the only real difference is that you can only have a single target\_output entry, whilst you can have many target entries. 
 
-Note, that the target entry can refer to a cubemap texture. Therefore, it takes an optional _decimal_ slice parameter that specifies which face you want to render on. The order is +X, -X, +Y, -Y, +Z, -Z. The default is 0, hence +X.
+Note, the target entry can refer to @ref Cube-map-textures. Therefore, it takes an optional _decimal_ slice parameter that specifies which face you want to render on. The default is 0, hence +X.
 
 Here are the attributes you can use in a ’target’ or ’target\_output’ section of a .compositor script:
 
@@ -447,10 +449,6 @@ Here are the attributes you can use in a ’target’ or ’target\_output’ se
 -   [lod\_bias](#compositor_005flod_005fbias)
 -   [material_scheme](#material_005fscheme)
 -   [shadows](#compositor_005fshadows)
-
-<a name="Attribute-Descriptions-2"></a>
-
-## Attribute Descriptions
 
 <a name="compositor_005ftarget_005finput"></a><a name="input"></a>
 
@@ -557,27 +555,21 @@ This kind of pass is just a callback to user code for the composition pass speci
 
 </dd> </dl>
 
-Here are the attributes you can use in a ’pass’ section of a .compositor script:
+## render_quad & compute
 
-<a name="Available-Pass-Attributes"></a>
-
-## Available Pass Attributes
+Here are the attributes you can use in the @c render_quad and @c compute sections of a .compositor script:
 
 -   [material](#material)
 -   [input](#compositor_005fpass_005finput)
 -   [identifier](#compositor_005fpass_005fidentifier)
--   [first\_render\_queue](#first_005frender_005fqueue)
--   [last\_render\_queue](#last_005frender_005fqueue)
 -   [thread_groups](#thread_groups)
--   [material\_scheme](#compositor_005fpass_005fmaterial_005fscheme)
 -   [quad_normals](#quad_normals)
--   [camera](#camera)
 
 <a name="material"></a><a name="material-1"></a>
 
-## material
+### material
 
-For passes of type `render_quad` and `compute`, sets the material to be used. With `compute` passes only the compute shader is used and pnly global auto parameter can be accessed.
+Sets the material to be used. With `compute` passes only the compute shader is used and only global auto parameter can be accessed.
 For `render_quad` you will want to use shaders in this material to perform fullscreen effects, and use the [input](#compositor_005fpass_005finput) attribute to map other texture targets into the texture bindings needed by this material. 
 
 @par
@@ -585,9 +577,9 @@ Format: material &lt;Name&gt;
 
 <a name="compositor_005fpass_005finput"></a><a name="input-1"></a>
 
-## input
+### input
 
-For passes of type `render_quad` and `compute`, this is how you map one or more local @ref compositor-texture into the material you’re using to render. To bind more than one texture, repeat this attribute with different texUnit indices.
+This is how you map one or more local @ref compositor-texture into the material you’re using to render. To bind more than one texture, repeat this attribute with different texUnit indices.
 
 @par
 Format: input &lt;texUnit&gt; &lt;name&gt; \[&lt;mrtIndex&gt;\]
@@ -604,9 +596,9 @@ Example: input 0 rt0
 
 <a name="compositor_005fpass_005fidentifier"></a><a name="identifier"></a>
 
-## identifier
+### identifier
 
-Associates a numeric identifier with a pass involving a material (like render_quad). This is useful for registering a listener with Ogre::CompositorInstance::addListener, and being able to identify which pass it is that’s being processed, so that material parameters can be varied. Numbers between 0 and 2^32 - 1 are allowed.
+Associates a numeric identifier with a pass involving a material. This is useful for registering a listener with Ogre::CompositorInstance::addListener, and being able to identify which pass it is that’s being processed, so that material parameters can be varied. Numbers between 0 and 2^32 - 1 are allowed.
 
 @par
 Format: identifier &lt;number&gt; 
@@ -615,29 +607,20 @@ Example: identifier 99945
 @par
 Default: identifier 0
 
-<a name="first_005frender_005fqueue"></a><a name="first_005frender_005fqueue-1"></a>
+<a name="quad_normals"></a>
 
-## first\_render\_queue
+### quad_normals
 
-For passes of type ’render\_scene’, this sets the first render queue id that is included in the render. Defaults to the value of Ogre::RENDER_QUEUE_BACKGROUND.
+Pass the camera Frustum far corner vectors in the quad normals for passes of type `quad`. This is particularly useful for efficiently reconstructing position using only the depth and the corners.
+
 @par
-Format: first\_render\_queue &lt;id&gt; 
+Format: quad_normals &lt;camera_far_corners_world_space|camera_far_corners_view_space&gt;
 @par
-Default: first\_render\_queue 0
-
-<a name="last_005frender_005fqueue"></a><a name="last_005frender_005fqueue-1"></a>
-
-## last\_render\_queue
-
-For passes of type ’render\_scene’, this sets the last render queue id that is included in the render. Defaults to the value of Ogre::RENDER_QUEUE_SKIES_LATE.
-@par
-Format: last\_render\_queue &lt;id&gt; 
-@par
-Default: last\_render\_queue 95
+Default: None
 
 <a name="thread_groups"></a>
 
-## thread_groups
+### thread_groups
 
 Passes of type `compute` operate on an abstract "compute space". This space is typically divided into threads and thread groups (work groups). The size of a thread group is defined inside the compute shader itself. This defines how many groups should be launched.
 
@@ -647,30 +630,48 @@ Example: if you want to process a 256x256px image and have a thread group size o
 @par
 Format: thread_groups &lt;groups_x&gt; &lt;groups_y&gt; &lt;groups_z&gt;
 
-<a name="compositor_005fpass_005fmaterial_005fscheme"></a><a name="material_005fscheme-2"></a>
+## render_scene
 
-## material\_scheme
+Here are the attributes you can use in a @c render_scene section of a .compositor script:
+
+-   [first\_render\_queue](#first_005frender_005fqueue)
+-   [last\_render\_queue](#last_005frender_005fqueue)
+-   [material\_scheme](#compositor_005fpass_005fmaterial_005fscheme)
+-   [camera](#camera)
+
+<a name="first_005frender_005fqueue"></a><a name="first_005frender_005fqueue-1"></a>
+
+### first\_render\_queue
+
+For passes of type ’render\_scene’, this sets the first render queue id that is included in the render. Defaults to the value of Ogre::RENDER_QUEUE_BACKGROUND.
+@par
+Format: first\_render\_queue &lt;id&gt;
+@par
+Default: first\_render\_queue 0
+
+<a name="last_005frender_005fqueue"></a><a name="last_005frender_005fqueue-1"></a>
+
+### last\_render\_queue
+
+For passes of type ’render\_scene’, this sets the last render queue id that is included in the render. Defaults to the value of Ogre::RENDER_QUEUE_SKIES_LATE.
+@par
+Format: last\_render\_queue &lt;id&gt;
+@par
+Default: last\_render\_queue 95
+
+<a name="compositor_005fpass_005fmaterial_005fscheme">
+
+### material\_scheme
 
 If set, indicates the material scheme to use for this pass only. Useful for performing special-case rendering effects. This will overwrite any scheme set in the parent @ref Compositor-Target-Passes.
 @par
-Format: material\_scheme &lt;scheme name&gt; 
-@par
-Default: None
-
-<a name="quad_normals"></a>
-
-## quad_normals
-
-Pass the camera Frustum far corner vectors in the quad normals for passes of type `quad`. This is particularly useful for efficiently reconstructing position using only the depth and the corners.
-
-@par
-Format: quad_normals &lt;camera_far_corners_world_space|camera_far_corners_view_space&gt;
+Format: material\_scheme &lt;scheme name&gt;
 @par
 Default: None
 
 <a name="camera"></a>
 
-## camera
+### camera
 
 Use a camera different from the output Viewport for rendering the scene into this target. Very useful for reflection effects like mirrors or water. The camera will be searched by name in the currently active scene and must be created prior to activating the compositor.
 
@@ -758,7 +759,7 @@ Here are the attributes you can use in a ’stencil’ section of a .compositor 
 
     ### check
 
-    Enables or disables the stencil check, thus enabling the use of the rest of the features in this section. The rest of the options in this section do nothing if the stencil check is off. 
+    Enables or disables the stencil check. The rest of the options in this section do nothing if the stencil check is off.
     @par
     Format: check (on | off)
 
@@ -766,18 +767,21 @@ Here are the attributes you can use in a ’stencil’ section of a .compositor 
 
     ### comp\_func
 
-    Sets the function used to perform the stencil comparison.
+    @copybrief Ogre::StencilState::compareOp
 
     @par
-    Format: comp\_func (always\_fail | always\_pass | less | less\_equal | not\_equal | greater\_equal | greater)
+    Format: comp\_func &lt;func&gt;
     @par
     Default: comp\_func always\_pass
+
+    @param func one of Ogre::CompareFunction without the `CMPF_` prefix. E.g. `CMPF_LESS_EQUAL` becomes `less_equal`.
 
     <a name="compositor_005fstencil_005fref_005fvalue"></a><a name="ref_005fvalue"></a>
 
     ### ref\_value
 
-    Sets the reference value used to compare with the stencil buffer as described in [comp\_func](#compositor_005fstencil_005fcomp_005ffunc). 
+    @copybrief Ogre::StencilState::referenceValue
+
     @par
     Format: ref\_value &lt;value&gt; 
     @par
@@ -787,7 +791,8 @@ Here are the attributes you can use in a ’stencil’ section of a .compositor 
 
     ### mask
 
-    Sets the mask used to compare with the stencil buffer as described in [comp\_func](#compositor_005fstencil_005fcomp_005ffunc). 
+    @copybrief Ogre::StencilState::compareMask
+
     @par
     Format: mask &lt;value&gt; 
     @par
@@ -797,71 +802,47 @@ Here are the attributes you can use in a ’stencil’ section of a .compositor 
 
     ### fail\_op
 
-    Sets what to do with the stencil buffer value if the result of the stencil comparison ([comp\_func](#compositor_005fstencil_005fcomp_005ffunc)) and depth comparison is that both fail. 
+    @copybrief Ogre::StencilState::stencilFailOp
+
     @par
-    Format: fail\_op (keep | zero | replace | increment | decrement | increment\_wrap | decrement\_wrap | invert)
+    Format: fail\_op &lt;op&gt;
     @par
-    Default: depth\_fail\_op keep These actions mean:
+    Default: fail\_op keep
 
-    <dl compact="compact">
-    <dt>keep</dt> <dd>
+    @param op one of Ogre::StencilOperation without the `SOP_` prefix. E.g. `SOP_INCREMENT_WRAP` becomes `increment_wrap`.
 
-    Leave the stencil buffer unchanged.
-
-    </dd> <dt>zero</dt> <dd>
-
-    Set the stencil value to zero.
-
-    </dd> <dt>replace</dt> <dd>
-
-    Set the stencil value to the reference value.
-
-    </dd> <dt>increment</dt> <dd>
-
-    Add one to the stencil value, clamping at the maximum value.
-
-    </dd> <dt>decrement</dt> <dd>
-
-    Subtract one from the stencil value, clamping at 0.
-
-    </dd> <dt>increment\_wrap</dt> <dd>
-
-    Add one to the stencil value, wrapping back to 0 at the maximum.
-
-    </dd> <dt>decrement\_wrap</dt> <dd>
-
-    Subtract one from the stencil value, wrapping to the maximum below 0.
-
-    </dd> <dt>invert</dt> <dd>
-
-    invert the stencil value.
-
-    </dd> </dl> <a name="compositor_005fstencil_005fdepth_005ffail_005fop"></a><a name="depth_005ffail_005fop"></a>
+    <a name="compositor_005fstencil_005fdepth_005ffail_005fop"></a><a name="depth_005ffail_005fop"></a>
 
     ### depth\_fail\_op
 
-    Sets what to do with the stencil buffer value if the result of the stencil comparison ([comp\_func](#compositor_005fstencil_005fcomp_005ffunc)) passes but the depth comparison fails. 
+    @copybrief Ogre::StencilState::depthFailOp
 
     @par
-    Format: depth\_fail\_op (keep | zero | replace | increment | decrement | increment\_wrap | decrement\_wrap | invert)
+    Format: depth\_fail\_op &lt;op&gt;
     @par
     Default: depth\_fail\_op keep
+
+    @param op one of Ogre::StencilOperation without the `SOP_` prefix. E.g. `SOP_INCREMENT_WRAP` becomes `increment_wrap`.
 
     <a name="compositor_005fstencil_005fpass_005fop"></a><a name="pass_005fop"></a>
 
     ### pass\_op
 
-    Sets what to do with the stencil buffer value if the result of the stencil comparison ([comp\_func](#compositor_005fstencil_005fcomp_005ffunc)) and the depth comparison pass.  
+    @copybrief Ogre::StencilState::depthStencilPassOp
+
     @par
-    Format: pass\_op (keep | zero | replace | increment | decrement | increment\_wrap | decrement\_wrap | invert)
+    Format: pass\_op &lt;op&gt;
     @par
     Default: pass\_op keep
+
+    @param op one of Ogre::StencilOperation without the `SOP_` prefix. E.g. `SOP_INCREMENT_WRAP` becomes `increment_wrap`.
 
     <a name="compositor_005fstencil_005ftwo_005fsided"></a><a name="two_005fsided"></a>
 
     ### two\_sided
 
-    Enables or disables two-sided stencil operations, which means the inverse of the operations applies to back-facing polygons.
+    @copybrief Ogre::StencilState::twoSidedOperation
+
     @par
     Format: two\_sided (on | off)
     @par

@@ -71,6 +71,7 @@ namespace Ogre
         //We need to clone the VertexData (but just reference all buffers, except the last one)
         //because last buffer contains data specific to this batch, we need a different binding
         mRenderOperation.vertexData = mRenderOperation.vertexData->clone( false );
+        mRemoveOwnVertexData = true;
         VertexData *thisVertexData      = mRenderOperation.vertexData;
         const unsigned short lastSource = thisVertexData->vertexDeclaration->getMaxSource();
         HardwareVertexBufferSharedPtr vertexBuffer =
@@ -269,12 +270,9 @@ namespace Ogre
         }
         else
         {
-            if( mManager->getCameraRelativeRendering() )
-            {
-                OGRE_EXCEPT(Exception::ERR_INVALID_STATE, "Camera-relative rendering is incompatible"
-                    " with Instancing's static batches. Disable at least one of them",
-                    "InstanceBatch::_updateRenderQueue");
-            }
+            OgreAssert(!mManager->getCameraRelativeRendering(),
+                       "Camera-relative rendering is incompatible with Instancing's static batches. "
+                       "Disable at least one of them");
 
             //Don't update when we're static
             if( mRenderOperation.numberOfInstances )

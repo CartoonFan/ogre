@@ -20,6 +20,7 @@
 #include "OgreDefaultDebugDrawer.h"
 %}
 
+%include stdint.i
 %include std_shared_ptr.i
 %include std_string.i
 %include std_pair.i
@@ -169,6 +170,7 @@ JNIEnv* OgreJNIGetEnv() {
 %ignore Ogre::HardwareBuffer::UsageEnum;
 %ignore Ogre::TextureUsage;
 %ignore Ogre::GpuConstantType;
+%ignore Ogre::GpuProgramParameters::ElementType;
 %ignore Ogre::Capabilities;
 %typemap(csbase) Ogre::SceneManager::QueryTypeMask "uint";
 %csmethodmodifiers *::ToString "public override";
@@ -234,7 +236,7 @@ JNIEnv* OgreJNIGetEnv() {
 %ignore Ogre::AllocPolicy;
 %import "OgreMemoryAllocatorConfig.h"
 %include "OgreCommon.h"
-%template(NameValuePairList) std::map<Ogre::String, Ogre::String>;
+%template(NameValuePairList) std::map<std::string, std::string>;
 ADD_REPR(TRect)
 %template(Rect) Ogre::TRect<long>;
 %template(FloatRect) Ogre::TRect<float>;
@@ -290,7 +292,7 @@ ADD_REPR(Vector)
 %template(Vector ## N) Ogre::Vector<N, Ogre::Real>;
 
 %extend Ogre::Vector<N, Ogre::Real> {
-    void __setitem__(int i, float v) { (*$self)[i] = v; }
+    void __setitem__(uint i, float v) { (*$self)[i] = v; }
 }
 %enddef
 
@@ -301,6 +303,23 @@ ADD_REPR(Vector)
 TPL_VECTOR(2)
 TPL_VECTOR(3)
 TPL_VECTOR(4)
+
+#ifdef SWIGCSHARP
+%define CS_VECTOR_OPS(N)
+%extend Ogre::Vector<N, Ogre::Real> {
+    %proxycode %{
+    public static Vector ## N operator+(Vector ## N lhs, Vector ## N rhs) { return lhs.__add__(rhs); }
+    public static Vector ## N operator-(Vector ## N lhs, Vector ## N rhs) { return lhs.__sub__(rhs); }
+    public static Vector ## N operator*(Vector ## N lhs, Vector ## N rhs) { return lhs.__mul__(rhs); }
+    public static Vector ## N operator/(Vector ## N lhs, Vector ## N rhs) { return lhs.__div__(rhs); }
+    public float this[uint i] { get { return __getitem__(i); } set { __setitem__(i, value); } }
+    %}
+}
+%enddef
+CS_VECTOR_OPS(2);
+CS_VECTOR_OPS(3);
+CS_VECTOR_OPS(4);
+#endif
 
 #ifdef SWIGPYTHON
 // enable implicit conversion from float to Radian
@@ -370,7 +389,8 @@ TPL_VECTOR(4)
     }
 }
 %typecheck(SWIG_TYPECHECK_POINTER) const TYPE& {
-    $1 = true; // actual check in the typemap
+    // actual check in the typemap, just skip strings here
+    $1 = PyUnicode_Check($input) == 0;
 }
 %enddef
 TYPEMAP_SEQUENCE_FOR(Ogre::Vector2, len == 2)
@@ -420,18 +440,20 @@ ADD_REPR(Plane)
 %include "OgrePlaneBoundedVolume.h"
 // I/O
 %include "OgreConfigOptionMap.h"
-%template(ConfigOptionMap) std::map<Ogre::String, Ogre::ConfigOption>;
+%template(ConfigOptionMap) std::map<std::string, Ogre::ConfigOption>;
 %ignore Ogre::ConfigFile::load; // conflicting overloads
 %ignore Ogre::ConfigFile::getSettingsIterator; // deprecated
 %ignore Ogre::ConfigFile::getSectionIterator;
-%template(SettingsBySection) std::map<Ogre::String, std::multimap< Ogre::String, Ogre::String> >;
+%template(SettingsBySection) std::map<std::string, std::multimap< std::string, std::string> >;
 #ifdef SWIGPYTHON
-%template(SettingsMultiMap) std::multimap<Ogre::String, Ogre::String>;
+%template(SettingsMultiMap) std::multimap<std::string, std::string>;
 #endif
 %include "OgreConfigFile.h"
-%feature("valuewrapper") Ogre::Log::Stream;
+%ignore Ogre::Log::Stream; // not useful in bindings
+%ignore Ogre::Log::stream;
 %feature("director") Ogre::LogListener;
 %include "OgreLog.h"
+%ignore Ogre::LogManager::stream; // not useful in bindings
 %include "OgreLogManager.h"
 #ifdef SWIGJAVA
 // conflicts with SWIG interal func
@@ -550,6 +572,7 @@ SHARED_PTR(Compositor);
 %ignore Ogre::CompositionTargetPass::getPassIterator;
 %include "OgreCompositionTargetPass.h"
 %include "OgreResourceBackgroundQueue.h"
+SHARED_PTR(HardwareBuffer);
 SHARED_PTR(HardwareVertexBuffer);
 #ifdef SWIGPYTHON
 %template(VertexElementList) std::list<Ogre::VertexElement>;
@@ -562,10 +585,6 @@ SHARED_PTR(HardwarePixelBuffer);
 %ignore Ogre::HardwarePixelBuffer::lock;  // duplicate definition
 #endif
 %include "OgreHardwarePixelBuffer.h"
-SHARED_PTR(HardwareCounterBuffer);
-%include "OgreHardwareCounterBuffer.h"
-SHARED_PTR(HardwareUniformBuffer);
-%include "OgreHardwareUniformBuffer.h"
 %ignore Ogre::HardwareBufferManagerBase::_forceReleaseBufferCopies(HardwareVertexBuffer* sourceBuffer);
 %include "OgreHardwareBufferManager.h"
 %include "OgreVertexIndexData.h"
@@ -610,10 +629,14 @@ SHARED_PTR(UnifiedHighLevelGpuProgram);
         typedef pointer_category category;
         static const char* type_name() { return "Ogre::AnimationState"; }
     };
+    template<> struct traits<Ogre::Camera> {
+        typedef pointer_category category;
+        static const char* type_name() { return "Ogre::Camera"; }
+    };
     }
 %}
 #endif
-%template(AnimationStateMap) std::map<Ogre::String, Ogre::AnimationState*>;
+%template(AnimationStateMap) std::map<std::string, Ogre::AnimationState*>;
 %ignore Ogre::Animation::getVertexTrackIterator;
 %ignore Ogre::Animation::getNodeTrackIterator;
 %ignore Ogre::Animation::getNumericTrackIterator;
@@ -671,6 +694,12 @@ SHARED_PTR(Material);
     return dynamic_cast<Ogre::Entity*>($self);
   }
 }
+%extend Ogre::Node {
+  SceneNode* castSceneNode()
+  {
+    return dynamic_cast<Ogre::SceneNode*>($self);
+  }
+}
 %include "OgreMovableObject.h"
     %include "OgreBillboardChain.h"
         %ignore Ogre::RibbonTrail::getNodeIterator;
@@ -682,6 +711,7 @@ SHARED_PTR(Material);
     %ignore Ogre::Light::getDirection;
     %include "OgreLight.h"
     %ignore Ogre::Node::getChildIterator;
+    %template(ChildNodeList) std::vector<Ogre::Node*>;
     %include "OgreNode.h"
         %include "OgreBone.h"
         %ignore Ogre::SceneNode::getAttachedObjectIterator;
@@ -697,7 +727,8 @@ SHARED_PTR(Material);
         SHARED_PTR(PlaneOptimalShadowCameraSetup);
         %include "OgreShadowCameraSetupPlaneOptimal.h"
         SHARED_PTR(PSSMShadowCameraSetup);
-        %include "OgreShadowCameraSetupPSSM.h"  
+        %include "OgreShadowCameraSetupPSSM.h"
+            %template(SplitPointList) std::vector<Ogre::Real>;
     %ignore Ogre::Frustum::getFrustumExtents(Real&, Real& ,Real& ,Real&) const;
     %include "OgreFrustum.h"
         %ignore Ogre::Camera::setPosition;
@@ -751,6 +782,7 @@ SHARED_PTR(Material);
 %ignore Ogre::Mesh::getBoneAssignmentIterator;
 %template(PoseList) std::vector<Ogre::Pose*>;
 %template(SubMeshList) std::vector<Ogre::SubMesh*>;
+%apply unsigned short& OUTPUT { unsigned short& outSourceCoordSet, unsigned short& outIndex };
 SHARED_PTR(Mesh);
 %include "OgreMesh.h"
 %ignore Ogre::SubMesh::getBoneAssignmentIterator;
@@ -803,8 +835,6 @@ SHARED_PTR(Mesh);
 %include "OgreCompositorChain.h"
 %ignore Ogre::RenderQueueGroup::getIterator;
 %include "OgreRenderQueueSortingGrouping.h"
-%ignore Ogre::RenderQueueInvocationSequence::iterator;
-%include "OgreRenderQueueInvocation.h"
 %ignore Ogre::SceneManager::getCameraIterator; // deprecated
 %ignore Ogre::SceneManager::getAnimationIterator;
 %ignore Ogre::SceneManager::getAnimationStateIterator;
@@ -814,6 +844,8 @@ SHARED_PTR(Mesh);
 %newobject Ogre::SceneManager::createRayQuery(const Ray&, uint32 mask);
 %newobject Ogre::SceneManager::createRayQuery(const Ray&);
 %rename(SceneManager_Listener) Ogre::SceneManager::Listener;
+%template(MovableObjectMap) std::map<std::string, Ogre::MovableObject*>;
+%template(CameraMap) std::map<std::string, Ogre::Camera*>;
 %include "OgreSceneManager.h"
 %ignore Ogre::SceneManagerEnumerator::createSceneManager(SceneTypeMask);
 %ignore Ogre::SceneManagerEnumerator::createSceneManager(SceneTypeMask, const String&);

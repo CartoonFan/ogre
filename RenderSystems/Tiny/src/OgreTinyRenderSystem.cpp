@@ -25,18 +25,16 @@
 
 namespace Ogre {
     TinyRenderSystem::TinyRenderSystem()
-        : mShaderManager(0),
-          mHardwareBufferManager(0)
+        : mHardwareBufferManager(0)
     {
         LogManager::getSingleton().logMessage(getName() + " created.");
 
         initConfigOptions();
 
         // create params
-        GpuLogicalBufferStructPtr nullPtr;
         GpuLogicalBufferStructPtr logicalBufferStruct(new GpuLogicalBufferStruct());
         mFixedFunctionParams.reset(new GpuProgramParameters);
-        mFixedFunctionParams->_setLogicalIndexes(logicalBufferStruct, nullPtr, nullPtr);
+        mFixedFunctionParams->_setLogicalIndexes(logicalBufferStruct);
         mFixedFunctionParams->setAutoConstant(0, GpuProgramParameters::ACT_WORLDVIEWPROJ_MATRIX);
         mFixedFunctionParams->setAutoConstant(4, GpuProgramParameters::ACT_TEXTURE_MATRIX);
         mFixedFunctionParams->setAutoConstant(8, GpuProgramParameters::ACT_DERIVED_AMBIENT_LIGHT_COLOUR);
@@ -122,14 +120,8 @@ namespace Ogre {
         // GL always shares vertex and fragment texture units (for now?)
         rsc->setVertexTextureUnitsShared(true);
 
-        // Blending support
-        rsc->setCapability(RSC_ADVANCED_BLEND_OPERATIONS);
-
         // Check for non-power-of-2 texture support
         rsc->setCapability(RSC_NON_POWER_OF_2_TEXTURES);
-
-        // Scissor test is standard
-        rsc->setCapability(RSC_SCISSOR_TEST);
 
         // As are user clipping planes
         rsc->setCapability(RSC_USER_CLIP_PLANES);
@@ -139,12 +131,8 @@ namespace Ogre {
         rsc->setCapability(RSC_TEXTURE_3D);
         rsc->setCapability(RSC_TEXTURE_2D_ARRAY);
 
-        // UBYTE4 always supported
-        rsc->setCapability(RSC_VERTEX_FORMAT_UBYTE4);
         rsc->setCapability(RSC_32BIT_INDEX);
 
-        // Infinite far plane always supported
-        rsc->setCapability(RSC_INFINITE_FAR_PLANE);
         rsc->setCapability(RSC_DEPTH_CLAMP);
 
         rsc->setCapability(RSC_VERTEX_BUFFER_INSTANCE_DATA);
@@ -165,10 +153,6 @@ namespace Ogre {
                         "Trying to initialize TinyRenderSystem from RenderSystemCapabilities that do not support Tiny");
         }
 
-        mShaderManager = new GpuProgramManager();
-        ResourceGroupManager::getSingleton()._registerResourceManager(mShaderManager->getResourceType(),
-                                                                      mShaderManager);
-
         // Use VBO's by default
         mHardwareBufferManager = new DefaultHardwareBufferManager();
 
@@ -187,9 +171,6 @@ namespace Ogre {
 
         OGRE_DELETE mTextureManager;
         mTextureManager = 0;
-
-        OGRE_DELETE mShaderManager;
-        mShaderManager = 0;
 
         mGLInitialised = 0;
     }
@@ -466,7 +447,7 @@ namespace Ogre {
 
     void TinyRenderSystem::clearFrameBuffer(unsigned int buffers,
                                                const ColourValue& colour,
-                                               Real depth, unsigned short stencil)
+                                               float depth, unsigned short stencil)
     {
         if (buffers & FBT_COLOUR)
         {

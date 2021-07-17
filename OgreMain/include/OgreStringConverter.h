@@ -36,6 +36,20 @@ THE SOFTWARE.
 #include "OgreMatrix4.h"
 #include "OgreVector.h"
 
+#if OGRE_PLATFORM == OGRE_PLATFORM_WIN32 || OGRE_PLATFORM == OGRE_PLATFORM_WINRT
+#   define locale_t _locale_t
+#elif OGRE_PLATFORM == OGRE_PLATFORM_ANDROID || OGRE_PLATFORM == OGRE_PLATFORM_EMSCRIPTEN
+#   define locale_t int
+#endif
+
+// If compiling with make on macOS, these headers need to be included to get
+// definitions of locale_t, strtod_l, etc...
+// See: http://www.unix.com/man-page/osx/3/strtod_l/
+#if OGRE_PLATFORM == OGRE_PLATFORM_APPLE
+#   include <stdlib.h>
+#   include <xlocale.h>
+#endif
+
 namespace Ogre {
 
     /** \addtogroup Core
@@ -325,13 +339,6 @@ namespace Ogre {
         /** Checks the String is a valid number value. */
         static bool isNumber(const String& val);
 
-
-		/// @deprecated
-		OGRE_DEPRECATED static String toString(ColourBufferType val);
-
-		/// @deprecated
-		OGRE_DEPRECATED static ColourBufferType parseColourBuffer(const String& val, ColourBufferType defaultValue = CBT_BACK);
-
 		/** Converts a StereoModeType to a String
 		@remarks
 			String output format is "None", "Frame Sequential", etc.
@@ -345,7 +352,7 @@ namespace Ogre {
 		static StereoModeType parseStereoMode(const String& val, StereoModeType defaultValue = SMT_NONE);
 
 		static locale_t _numLocale;
-    protected:
+    private:
         template<typename T>
         static String _toString(T val, uint16 width, char fill, std::ios::fmtflags flags);
     };

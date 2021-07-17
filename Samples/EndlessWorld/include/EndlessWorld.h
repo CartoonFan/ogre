@@ -72,16 +72,6 @@ public:
 			"cursor and access widgets. Use WASD keys to move. You can increase/decrease terrains' LOD level using Page Up/Page Down."
 			"Use C to generate another random terrain";
 	}
-    
-	StringVector getRequiredPlugins()
-	{
-		StringVector names;
-		if(!GpuProgramManager::getSingleton().isSyntaxSupported("glsles")
-		&& !GpuProgramManager::getSingleton().isSyntaxSupported("glsl")
-		&& !GpuProgramManager::getSingleton().isSyntaxSupported("hlsl"))
-            names.push_back("Cg Program Manager");
-		return names;
-	}
 
     bool frameRenderingQueued(const FrameEvent& evt)
     {
@@ -120,10 +110,9 @@ public:
 			}
 			mLodStatusLabelList.clear();
 
-			TerrainGroup::TerrainIterator ti = mTerrainGroup->getTerrainIterator();
-			while(ti.hasMoreElements())
+			for (const auto& ti : mTerrainGroup->getTerrainSlots())
 			{
-				Terrain* t = ti.getNext()->instance;
+				Terrain* t = ti.second->instance;
 				if (!t)
 					continue;
 
@@ -161,11 +150,9 @@ public:
 		case SDLK_PAGEUP:
 			{
 				mAutoBox->setChecked(false);
-				TerrainGroup::TerrainIterator ti = mTerrainGroup->getTerrainIterator();
-				while(ti.hasMoreElements())
+				for (const auto& ti : mTerrainGroup->getTerrainSlots())
 				{
-					Terrain* t = ti.getNext()->instance;
-					if (t)
+					if(Terrain* t = ti.second->instance)
 						t->increaseLodLevel();
 				}
 			}
@@ -173,11 +160,9 @@ public:
 		case SDLK_PAGEDOWN:
 			{
 				mAutoBox->setChecked(false);
-				TerrainGroup::TerrainIterator ti = mTerrainGroup->getTerrainIterator();
-				while(ti.hasMoreElements())
+				for (const auto& ti : mTerrainGroup->getTerrainSlots())
 				{
-					Terrain* t = ti.getNext()->instance;
-					if (t)
+					if(Terrain* t = ti.second->instance)
 						t->decreaseLodLevel();
 				}
 			}
@@ -190,13 +175,10 @@ public:
 				mPerlinNoiseTerrainGenerator->randomize();
 
 				// reload all terrains
-				TerrainGroup::TerrainIterator ti = mTerrainGroup->getTerrainIterator();
-				while(ti.hasMoreElements())
+				for (const auto& ti : mTerrainGroup->getTerrainSlots())
 				{
-					TerrainGroup::TerrainSlot* slot = ti.getNext();
-					PageID pageID = mTerrainGroup->packIndex( slot->x, slot->y );
-					mTerrainPagedWorldSection->unloadPage(pageID);
-					mTerrainPagedWorldSection->loadPage(pageID);
+					mTerrainPagedWorldSection->unloadPage(ti.first);
+					mTerrainPagedWorldSection->loadPage(ti.first);
 				}
 			}
 			break;
@@ -385,7 +367,7 @@ protected:
 
 		mSceneMgr->setFog(FOG_LINEAR, ColourValue(0.7, 0.7, 0.8), 0, 4000, 10000);
 
-		LogManager::getSingleton().setLogDetail(LL_BOREME);
+		LogManager::getSingleton().setMinLogLevel(LML_TRIVIAL);
 
 		Light* l = mSceneMgr->createLight("tstLight");
 		l->setType(Light::LT_DIRECTIONAL);

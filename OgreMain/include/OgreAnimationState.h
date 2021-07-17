@@ -34,11 +34,14 @@ THE SOFTWARE.
 #include "OgreCommon.h"
 #include "OgreController.h"
 #include "OgreControllerManager.h"
-#include "OgreIteratorWrapper.h"
 #include "Threading/OgreThreadHeaders.h"
 #include "OgreHeaderPrefix.h"
 
 namespace Ogre {
+
+    template <typename T> class MapIterator;
+    template <typename T> class ConstMapIterator;
+    template <typename T> class ConstVectorIterator;
 
     /** \addtogroup Core
     *  @{
@@ -169,7 +172,7 @@ namespace Ogre {
           assert(mBlendMask && mBlendMask->size() > boneHandle);
           return (*mBlendMask)[boneHandle];
       }
-    protected:
+    private:
         /// The blend mask (containing per bone weights)
         BoneBlendMask* mBlendMask;
 
@@ -268,7 +271,7 @@ namespace Ogre {
             return mEnabledAnimationStates;
         }
 
-    protected:
+    private:
         unsigned long mDirtyFrameNumber;
         AnimationStateMap mAnimationStates;
         EnabledAnimationStateList mEnabledAnimationStates;
@@ -285,7 +288,7 @@ namespace Ogre {
     */
     class _OgreExport AnimationStateControllerValue : public ControllerValue<Real>
     {
-    protected:
+    private:
         AnimationState* mTargetAnimationState;
         bool mAddTime;
     public:

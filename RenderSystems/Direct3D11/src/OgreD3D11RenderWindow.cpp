@@ -126,8 +126,6 @@ namespace Ogre
 			rsys->addToSwitchingFullscreenCounter();
 		}
 
-        mColourDepth = colourDepth;
-
         mWidth = mHeight = mLeft = mTop = 0;
 
         mActive = true;
@@ -623,7 +621,6 @@ namespace Ogre
     {
         D3D11RenderWindowSwapChainBased::create(name, width, height, fullScreen, miscParams);
 
-        HWND parentHWnd = 0;
         WNDPROC windowProc = DefWindowProc;
         HWND externalHandle = 0;
         String title = name;
@@ -656,15 +653,13 @@ namespace Ogre
             opt = miscParams->find("title");
             if(opt != miscParams->end())
                 title = opt->second;
-            // parentWindowHandle       -> parentHWnd
-            opt = miscParams->find("parentWindowHandle");
-            if(opt != miscParams->end())
-                parentHWnd = (HWND)StringConverter::parseSizeT(opt->second);
             opt = miscParams->find("windowProc");
             if (opt != miscParams->end())
                 windowProc = reinterpret_cast<WNDPROC>(StringConverter::parseSizeT(opt->second));
             // externalWindowHandle     -> externalHandle
             opt = miscParams->find("externalWindowHandle");
+            if (opt == miscParams->end())
+                opt = miscParams->find("parentWindowHandle");
             if(opt != miscParams->end())
                 externalHandle = (HWND)StringConverter::parseSizeT(opt->second);
             // window border style
@@ -731,20 +726,13 @@ namespace Ogre
 				mFullscreenWinStyle |= WS_VISIBLE;
 				mWindowedWinStyle |= WS_VISIBLE;
 			}
-			if (parentHWnd)
-			{
-				mWindowedWinStyle |= WS_CHILD;
-			}
-			else
-			{
-				if (border == "none")
-					mWindowedWinStyle |= WS_POPUP;
-				else if (border == "fixed")
-					mWindowedWinStyle |= WS_OVERLAPPED | WS_BORDER | WS_CAPTION |
-					WS_SYSMENU | WS_MINIMIZEBOX;
-				else
-					mWindowedWinStyle |= WS_OVERLAPPEDWINDOW;
-			}
+            if (border == "none")
+                mWindowedWinStyle |= WS_POPUP;
+            else if (border == "fixed")
+                mWindowedWinStyle |= WS_OVERLAPPED | WS_BORDER | WS_CAPTION |
+                WS_SYSMENU | WS_MINIMIZEBOX;
+            else
+                mWindowedWinStyle |= WS_OVERLAPPEDWINDOW;
 			unsigned int winWidth, winHeight;
 			winWidth = width;
 			winHeight = height;
@@ -811,7 +799,7 @@ namespace Ogre
 			RegisterClass(&wc);
 			mIsExternal = false;
 			mHWnd = CreateWindowEx(dwStyleEx, OGRE_D3D11_WIN_CLASS_NAME, title.c_str(), getWindowStyle(fullScreen),
-				mLeft, mTop, winWidth, winHeight, parentHWnd, 0, hInst, this);
+				mLeft, mTop, winWidth, winHeight, 0, 0, hInst, this);
 		}
 		else
 		{
@@ -832,8 +820,7 @@ namespace Ogre
 
         LogManager::getSingleton().stream()
             << "D3D11: Created D3D11 Rendering Window '"
-            << mName << "' : " << mWidth << "x" << mHeight 
-            << ", " << mColourDepth << "bpp";
+            << mName << "' : " << mWidth << "x" << mHeight;
 
         _createSwapChain();
         _createSizeDependedD3DResources();
@@ -1275,7 +1262,7 @@ namespace Ogre
 
         LogManager::getSingleton().stream() << std::fixed << std::setprecision(1) 
             << "D3D11: Created D3D11 Rendering Window \"" << mName << "\", " << rc.Width << " x " << rc.Height
-            << ", with backing store " << mWidth << "x" << mHeight << ", " << mColourDepth << "bpp, "
+            << ", with backing store " << mWidth << "x" << mHeight << " "
             << "using content scaling factor " << scale;
 
         _createSwapChain();
@@ -1428,7 +1415,7 @@ namespace Ogre
 
         LogManager::getSingleton().stream() << std::fixed << std::setprecision(1) 
             << "D3D11: Created D3D11 SwapChainPanel Rendering Window \"" << mName << "\", " << sz.Width << " x " << sz.Height
-            << ", with backing store " << mWidth << "x" << mHeight << ", " << mColourDepth << "bpp, "
+            << ", with backing store " << mWidth << "x" << mHeight << " "
             << "using content scaling factor { " << mCompositionScale.Width << ", " << mCompositionScale.Height << " }";
 
         _createSwapChain();

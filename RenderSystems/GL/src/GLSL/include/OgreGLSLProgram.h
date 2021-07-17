@@ -110,10 +110,8 @@ namespace Ogre {
         /// Internal unload implementation, must be implemented by subclasses
         void unloadHighLevelImpl(void);
 
-        /// Populate the passed parameters with name->index map
-        void populateParameterNames(GpuProgramParametersSharedPtr params);
         /// Populate the passed parameters with name->index map, must be overridden
-        void buildConstantDefinitions() const;
+        void buildConstantDefinitions() override;
 
         // legacy GL_EXT_geometry_shader4 functionality
         RenderOperation::OperationType mInputOperationType;

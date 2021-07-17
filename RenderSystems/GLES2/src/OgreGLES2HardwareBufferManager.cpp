@@ -88,12 +88,7 @@ namespace Ogre {
         auto indexSize = HardwareIndexBuffer::indexSize(itype);
         auto impl = new GLES2HardwareBuffer(GL_ELEMENT_ARRAY_BUFFER, indexSize * numIndexes, usage, useShadowBuffer);
 
-        auto buf = std::make_shared<HardwareIndexBuffer>(this, itype, numIndexes, impl);
-        {
-            OGRE_LOCK_MUTEX(mIndexBuffersMutex);
-            mIndexBuffers.insert(buf.get());
-        }
-        return buf;
+        return std::make_shared<HardwareIndexBuffer>(this, itype, numIndexes, impl);
     }
 
     RenderToVertexBufferSharedPtr GLES2HardwareBufferManager::createRenderToVertexBuffer()
@@ -126,11 +121,9 @@ namespace Ogre {
             case VET_SHORT2_NORM:
             case VET_SHORT4_NORM:
                 return GL_SHORT;
-            case VET_COLOUR:
-            case VET_COLOUR_ABGR:
-            case VET_COLOUR_ARGB:
             case VET_UBYTE4:
             case VET_UBYTE4_NORM:
+            case _DETAIL_SWAP_RB:
                 return GL_UNSIGNED_BYTE;
             case VET_BYTE4:
             case VET_BYTE4_NORM:
@@ -164,7 +157,7 @@ namespace Ogre {
     }
 
     //---------------------------------------------------------------------
-    HardwareUniformBufferSharedPtr GLES2HardwareBufferManager::createUniformBuffer( size_t sizeBytes, HardwareBuffer::Usage usage, bool useShadowBuffer, const String& name )
+    HardwareBufferPtr GLES2HardwareBufferManager::createUniformBuffer( size_t sizeBytes, HardwareBufferUsage usage, bool useShadowBuffer)
     {
         if (!mRenderSystem->hasMinGLVersion(3, 0))
         {
@@ -172,11 +165,7 @@ namespace Ogre {
         }
 
         auto impl = new GLES2HardwareBuffer(GL_UNIFORM_BUFFER, sizeBytes, usage, useShadowBuffer);
-        auto buf = std::make_shared<HardwareUniformBuffer>(this, impl);
-        {
-            OGRE_LOCK_MUTEX(mUniformBuffersMutex);
-            mUniformBuffers.insert(buf.get());
-        }
+        auto buf = HardwareBufferPtr(impl);
         return buf;
     }
 

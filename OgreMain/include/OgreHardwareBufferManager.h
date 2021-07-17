@@ -33,7 +33,6 @@ THE SOFTWARE.
 
 #include "OgreSingleton.h"
 #include "OgreHardwareIndexBuffer.h"
-#include "OgreHardwareUniformBuffer.h"
 #include "OgreHardwareVertexBuffer.h"
 #include "Threading/OgreThreadHeaders.h"
 #include "OgreHeaderPrefix.h"
@@ -107,19 +106,14 @@ namespace Ogre {
     class _OgreExport HardwareBufferManagerBase : public BufferAlloc
     {
     protected:
-        /** WARNING: The following two members should place before all other members.
+        /** WARNING: The following member should place before all other members.
             Members destruct order is very important here, because destructing other
             members will cause notify back to this class, and then will access to this
             two members.
         */
         typedef std::set<HardwareVertexBuffer*> VertexBufferList;
         typedef std::set<HardwareIndexBuffer*> IndexBufferList;
-        typedef std::set<HardwareUniformBuffer*> UniformBufferList;
-        typedef std::set<HardwareCounterBuffer*> CounterBufferList;
         VertexBufferList mVertexBuffers;
-        IndexBufferList mIndexBuffers;
-        UniformBufferList mUniformBuffers;
-        CounterBufferList mCounterBuffers;
 
 
         typedef std::set<VertexDeclaration*> VertexDeclarationList;
@@ -129,9 +123,6 @@ namespace Ogre {
 
         // Mutexes
         OGRE_MUTEX(mVertexBuffersMutex);
-        OGRE_MUTEX(mIndexBuffersMutex);
-        OGRE_MUTEX(mUniformBuffersMutex);
-        OGRE_MUTEX(mCounterBuffersMutex);
         OGRE_MUTEX(mVertexDeclarationsMutex);
         OGRE_MUTEX(mVertexBufferBindingsMutex);
 
@@ -160,7 +151,7 @@ namespace Ogre {
             BLT_AUTOMATIC_RELEASE
         };
 
-    protected:
+    private:
         /** Struct holding details of a license to use a temporary shared buffer. */
         class _OgrePrivate VertexBufferLicense
         {
@@ -281,17 +272,9 @@ namespace Ogre {
          * and sharing between shader stages or even shaders from another materials. 
          * The update shall be triggered by GpuProgramParameters, if is dirty
          */
-        virtual HardwareUniformBufferSharedPtr createUniformBuffer(size_t sizeBytes, 
-                                    HardwareBuffer::Usage usage = HardwareBuffer::HBU_DYNAMIC_WRITE_ONLY_DISCARDABLE, 
-                                    bool useShadowBuffer = false, const String& name = "");
-
-        /**
-         * Create counter buffer.
-         * The update shall be triggered by GpuProgramParameters, if is dirty
-         */
-        virtual HardwareCounterBufferSharedPtr createCounterBuffer(size_t sizeBytes,
-                                                                   HardwareBuffer::Usage usage = HardwareBuffer::HBU_DYNAMIC_WRITE_ONLY_DISCARDABLE,
-                                                                   bool useShadowBuffer = false, const String& name = "");
+        virtual HardwareBufferPtr createUniformBuffer(size_t sizeBytes,
+                                                      HardwareBufferUsage usage = HBU_CPU_TO_GPU,
+                                                      bool useShadowBuffer = false);
 
         /** Creates a new vertex declaration. */
         VertexDeclaration* createVertexDeclaration(void);
@@ -408,12 +391,6 @@ namespace Ogre {
 
         /// Notification that a hardware vertex buffer has been destroyed.
         void _notifyVertexBufferDestroyed(HardwareVertexBuffer* buf);
-        /// Notification that a hardware index buffer has been destroyed.
-        void _notifyIndexBufferDestroyed(HardwareIndexBuffer* buf);
-        /// Notification that at hardware uniform buffer has been destroyed
-        void _notifyUniformBufferDestroyed(HardwareUniformBuffer* buf);
-        /// Notification that at hardware counter buffer has been destroyed
-        void _notifyCounterBufferDestroyed(HardwareCounterBuffer* buf);
     };
 
     /** Singleton wrapper for hardware buffer manager. */

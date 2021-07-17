@@ -31,7 +31,6 @@ THE SOFTWARE.
 #include "OgreConfig.h"
 #include "OgreExports.h"
 
-namespace Ogre {
 /* Initial platform/compiler-related stuff to set.
 */
 #define OGRE_PLATFORM_WIN32 1
@@ -44,10 +43,7 @@ namespace Ogre {
     
 #define OGRE_COMPILER_MSVC 1
 #define OGRE_COMPILER_GNUC 2
-#define OGRE_COMPILER_BORL 3
-#define OGRE_COMPILER_WINSCW 4
-#define OGRE_COMPILER_GCCE 5
-#define OGRE_COMPILER_CLANG 6
+#define OGRE_COMPILER_CLANG 3
 
 #define OGRE_ENDIAN_LITTLE 1
 #define OGRE_ENDIAN_BIG 2
@@ -113,10 +109,6 @@ namespace Ogre {
 #   define OGRE_COMP_VER (((__GNUC__)*100) + \
         (__GNUC_MINOR__*10) + \
         __GNUC_PATCHLEVEL__)
-#elif defined( __BORLANDC__ )
-#   define OGRE_COMPILER OGRE_COMPILER_BORL
-#   define OGRE_COMP_VER __BCPLUSPLUS__
-#   define __FUNCTION__ __FUNC__ 
 #else
 #   pragma error "No known compiler. Abort! Abort!"
 
@@ -283,21 +275,17 @@ namespace Ogre {
 #define DECL_MALLOC __attribute__ ((malloc))
 #endif
 
-// Integer formats of fixed bit width
-typedef unsigned int uint32;
-typedef unsigned short uint16;
-typedef unsigned char uint8;
-typedef int int32;
-typedef short int16;
-typedef signed char int8;
-// define uint64 type
-#if OGRE_COMPILER == OGRE_COMPILER_MSVC
-    typedef unsigned __int64 uint64;
-    typedef __int64 int64;
-#else
-    typedef unsigned long long uint64;
-    typedef long long int64;
-#endif
+#include <stdint.h>
+
+namespace Ogre {
+typedef uint32_t uint32;
+typedef uint16_t uint16;
+typedef uint8_t uint8;
+typedef uint64_t uint64;
+typedef int32_t int32;
+typedef int16_t int16;
+typedef int8_t int8;
+typedef int64_t int64;
 }
 
 #endif

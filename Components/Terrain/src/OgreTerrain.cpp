@@ -76,7 +76,7 @@ namespace Ogre
     const uint16 Terrain::WORKQUEUE_DERIVED_DATA_REQUEST = 1;
     const uint64 Terrain::TERRAIN_GENERATE_MATERIAL_INTERVAL_MS = 400;
     const uint16 Terrain::WORKQUEUE_GENERATE_MATERIAL_REQUEST = 2;
-    const size_t Terrain::LOD_MORPH_CUSTOM_PARAM = 1001;
+    const uint32 Terrain::LOD_MORPH_CUSTOM_PARAM = 1001;
     const uint8 Terrain::DERIVED_DATA_DELTAS = 1;
     const uint8 Terrain::DERIVED_DATA_NORMALS = 2;
     const uint8 Terrain::DERIVED_DATA_LIGHTMAP = 4;
@@ -758,7 +758,7 @@ namespace Ogre
         }
 
         // Create & load quadtree
-        mQuadTree = OGRE_NEW TerrainQuadTreeNode(this, 0, 0, 0, mSize, mNumLodLevels - 1, 0, 0);
+        mQuadTree = OGRE_NEW TerrainQuadTreeNode(this, 0, 0, 0, mSize, mNumLodLevels - 1, 0);
         mQuadTree->prepare(stream);
 
         // stop uncompressing
@@ -854,9 +854,9 @@ namespace Ogre
             // convert image data to floats
             // Do this on a row-by-row basis, because we describe the terrain in
             // a bottom-up fashion (ie ascending world coords), while Image is top-down
-            for (size_t i = 0; i < mSize; ++i)
+            for (uint16 i = 0; i < mSize; ++i)
             {
-                size_t srcy = mSize - i - 1;
+                uint32 srcy = mSize - i - 1;
                 float* pDst = mHeightData + i * mSize;
                 PixelUtil::bulkPixelConversion(img->getData(0, srcy), img->getFormat(), pDst, PF_FLOAT32_R,
                                                mSize);
@@ -890,7 +890,7 @@ namespace Ogre
         mDeltaData = OGRE_ALLOC_T(float, numVertices, MEMCATEGORY_GEOMETRY);
         memset(mDeltaData, 0, sizeof(float) * numVertices);
 
-        mQuadTree = OGRE_NEW TerrainQuadTreeNode(this, 0, 0, 0, mSize, mNumLodLevels - 1, 0, 0);
+        mQuadTree = OGRE_NEW TerrainQuadTreeNode(this, 0, 0, 0, mSize, mNumLodLevels - 1, 0);
         mQuadTree->prepare();
 
         // calculate entire terrain
@@ -1161,29 +1161,27 @@ namespace Ogre
         return mHeightData;
     }
     //---------------------------------------------------------------------
-    float* Terrain::getHeightData(long x, long y) const
+    float* Terrain::getHeightData(uint32 x, uint32 y) const
     {
-        assert (x >= 0 && x < mSize && y >= 0 && y < mSize);
+        assert (x < mSize && y < mSize);
         return &mHeightData[y * mSize + x];
     }
     //---------------------------------------------------------------------
-    float Terrain::getHeightAtPoint(long x, long y) const
+    float Terrain::getHeightAtPoint(uint32 x, uint32 y) const
     {
         // clamp
-        x = std::min(x, (long)mSize - 1L);
-        x = std::max(x, 0L);
-        y = std::min(y, (long)mSize - 1L);
-        y = std::max(y, 0L);
+        x = std::min(x, mSize - 1u);
+        y = std::min(y, mSize - 1u);
 
         int highestLod = mLodManager->getHighestLodPrepared();
-        long skip = 1 << (highestLod != -1 ? highestLod : 0);
+        uint32 skip = 1 << (highestLod != -1 ? highestLod : 0);
         if (x % skip == 0 && y % skip == 0)
         return *getHeightData(x, y);
 
-        long x1 = std::min( (x/skip) * skip         , (long)mSize - 1L );
-        long x2 = std::min( ((x+skip) / skip) * skip, (long)mSize - 1L );
-        long y1 = std::min( (y/skip) * skip         , (long)mSize - 1L );
-        long y2 = std::min( ((y+skip) / skip) * skip, (long)mSize - 1L );
+        uint32 x1 = std::min( (x/skip) * skip         , mSize - 1u );
+        uint32 x2 = std::min( ((x+skip) / skip) * skip, mSize - 1u );
+        uint32 y1 = std::min( (y/skip) * skip         , mSize - 1u );
+        uint32 y2 = std::min( ((y+skip) / skip) * skip, mSize - 1u );
 
         float rx = (float(x % skip) / skip);
         float ry = (float(y % skip) / skip);
@@ -1194,15 +1192,13 @@ namespace Ogre
             + *getHeightData(x2, y2) * rx * ry;
     }
     //---------------------------------------------------------------------
-    void Terrain::setHeightAtPoint(long x, long y, float h)
+    void Terrain::setHeightAtPoint(uint32 x, uint32 y, float h)
     {
         // force to load all data
         load(0,true);
         // clamp
-        x = std::min(x, (long)mSize - 1L);
-        x = std::max(x, 0L);
-        y = std::min(y, (long)mSize - 1L);
-        y = std::max(y, 0L);
+        x = std::min(x, mSize - 1u);
+        y = std::min(y, mSize - 1u);
 
         *getHeightData(x, y) = h;
         Rect rect;
@@ -1219,10 +1215,10 @@ namespace Ogre
         Real factor = (Real)mSize - 1.0f;
         Real invFactor = 1.0f / factor;
 
-        long startX = static_cast<long>(x * factor);
-        long startY = static_cast<long>(y * factor);
-        long endX = startX + 1;
-        long endY = startY + 1;
+        uint32 startX = static_cast<uint32>(x * factor);
+        uint32 startY = static_cast<uint32>(y * factor);
+        uint32 endX = startX + 1;
+        uint32 endY = startY + 1;
 
         // now get points in terrain space (effectively rounding them to boundaries)
         // note that we do not clamp! We need a valid plane
@@ -1232,8 +1228,8 @@ namespace Ogre
         Real endYTS = endY * invFactor;
 
         // now clamp
-        endX = std::min(endX, (long)mSize-1);
-        endY = std::min(endY, (long)mSize-1);
+        endX = std::min(endX, mSize-1u);
+        endY = std::min(endY, mSize-1u);
 
         // get parametric from start coord to next point
         Real xParam = (x - startXTS) / invFactor;
@@ -1296,9 +1292,9 @@ namespace Ogre
         return mDeltaData;
     }
     //---------------------------------------------------------------------
-    const float* Terrain::getDeltaData(long x, long y) const
+    const float* Terrain::getDeltaData(uint32 x, uint32 y) const
     {
-        assert (x >= 0 && x < mSize && y >= 0 && y < mSize);
+        assert (x < mSize && y < mSize);
         return &mDeltaData[y * mSize + x];
     }
     //---------------------------------------------------------------------
@@ -1467,22 +1463,22 @@ namespace Ogre
         return ret;
     }
     //---------------------------------------------------------------------
-    void Terrain::getPoint(long x, long y, Vector3* outpos) const
+    void Terrain::getPoint(uint32 x, uint32 y, Vector3* outpos) const
     {
         getPointAlign(x, y, mAlign, outpos);
     }
     //---------------------------------------------------------------------
-    void Terrain::getPoint(long x, long y, float height, Vector3* outpos) const
+    void Terrain::getPoint(uint32 x, uint32 y, float height, Vector3* outpos) const
     {
         getPointAlign(x, y, height, mAlign, outpos);
     }
     //---------------------------------------------------------------------
-    void Terrain::getPointAlign(long x, long y, Alignment align, Vector3* outpos) const
+    void Terrain::getPointAlign(uint32 x, uint32 y, Alignment align, Vector3* outpos) const
     {
         getPointAlign(x, y, *getHeightData(x, y), align, outpos);
     }
     //---------------------------------------------------------------------
-    void Terrain::getPointAlign(long x, long y, float height, Alignment align, Vector3* outpos) const
+    void Terrain::getPointAlign(uint32 x, uint32 y, float height, Alignment align, Vector3* outpos) const
     {
         switch(align)
         {
@@ -2055,10 +2051,10 @@ namespace Ogre
             // need to widen the dirty rectangle since change will affect surrounding
             // vertices at lower LOD
             Rect widenedRect(rect);
-            widenedRect.left = std::max(0L, widenedRect.left - step);
-            widenedRect.top = std::max(0L, widenedRect.top - step);
-            widenedRect.right = std::min((long)mSize, widenedRect.right + step);
-            widenedRect.bottom = std::min((long)mSize, widenedRect.bottom + step);
+            widenedRect.left = std::max(0, widenedRect.left - step);
+            widenedRect.top = std::max(0, widenedRect.top - step);
+            widenedRect.right = std::min((int)mSize, widenedRect.right + step);
+            widenedRect.bottom = std::min((int)mSize, widenedRect.bottom + step);
 
             // keep a merge of the widest
             finalRect.merge(widenedRect);
@@ -2074,9 +2070,9 @@ namespace Ogre
             if (lodRect.bottom % step)
                 lodRect.bottom += step - (lodRect.bottom % step);
 
-            for (long j = lodRect.top; j < lodRect.bottom - step; j += step )
+            for (int j = lodRect.top; j < lodRect.bottom - step; j += step )
             {
-                for (long i = lodRect.left; i < lodRect.right - step; i += step )
+                for (int i = lodRect.left; i < lodRect.right - step; i += step )
                 {
                     // Form planes relating to the lower detail tris to be produced
                     // For even tri strip rows, they are this shape:
@@ -3247,10 +3243,10 @@ namespace Ogre
         // Widen the rectangle by 1 element in all directions since height
         // changes affect neighbours normals
         Rect widenedRect(
-            std::max(0L, rect.left - 1L), 
-            std::max(0L, rect.top - 1L), 
-            std::min((long)mSize, rect.right + 1L), 
-            std::min((long)mSize, rect.bottom + 1L)
+            std::max(0, rect.left - 1),
+            std::max(0, rect.top - 1),
+            std::min((int32)mSize, rect.right + 1),
+            std::min((int32)mSize, rect.bottom + 1)
             );
         // allocate memory for RGB
         uint8* pData = static_cast<uint8*>(
@@ -3266,9 +3262,9 @@ namespace Ogre
         //  | / | \ |
         //  5---6---7
 
-        for (long y = widenedRect.top; y < widenedRect.bottom; ++y)
+        for (int y = widenedRect.top; y < widenedRect.bottom; ++y)
         {
-            for (long x = widenedRect.left; x < widenedRect.right; ++x)
+            for (int x = widenedRect.left; x < widenedRect.right; ++x)
             {
                 Vector3 cumulativeNormal = Vector3::ZERO;
 
@@ -3392,10 +3388,10 @@ namespace Ogre
                 // build rectangle which has rounded down & rounded up values
                 // remember right & bottom are exclusive
                 Rect mergeRect(
-                    (long)(terrainHitPos.x * (mSize - 1)), 
-                    (long)(terrainHitPos.y * (mSize - 1)), 
-                    (long)(terrainHitPos.x * (float)(mSize - 1) + 0.5) + 1, 
-                    (long)(terrainHitPos.y * (float)(mSize - 1) + 0.5) + 1
+                    (terrainHitPos.x * (mSize - 1)),
+                    (terrainHitPos.y * (mSize - 1)),
+                    (terrainHitPos.x * (float)(mSize - 1) + 0.5) + 1,
+                    (terrainHitPos.y * (float)(mSize - 1) + 0.5) + 1
                     );
                 outRect.merge(mergeRect);
             }
@@ -3421,10 +3417,10 @@ namespace Ogre
         // widenedRect now contains terrain point space version of the area we
         // need to calculate. However, we need to calculate in lightmap image space
         float terrainToLightmapScale = (float)mLightmapSizeActual / (float)mSize;
-        widenedRect.left = (long)(widenedRect.left * terrainToLightmapScale);
-        widenedRect.right = (long)(widenedRect.right * terrainToLightmapScale);
-        widenedRect.top = (long)(widenedRect.top * terrainToLightmapScale);
-        widenedRect.bottom = (long)(widenedRect.bottom * terrainToLightmapScale);
+        widenedRect.left = (widenedRect.left * terrainToLightmapScale);
+        widenedRect.right = (widenedRect.right * terrainToLightmapScale);
+        widenedRect.top = (widenedRect.top * terrainToLightmapScale);
+        widenedRect.bottom = (widenedRect.bottom * terrainToLightmapScale);
 
         // clamp 
         widenedRect = widenedRect.intersect(Rect(0, 0, mLightmapSizeActual, mLightmapSizeActual));
@@ -3832,11 +3828,11 @@ namespace Ogre
             getEdgeRect(index, 1, &heightMatchRect);
             heightMatchRect = heightMatchRect.intersect(edgerect);
 
-            for (long y = heightMatchRect.top; y < heightMatchRect.bottom; ++y)
+            for (int y = heightMatchRect.top; y < heightMatchRect.bottom; ++y)
             {
-                for (long x = heightMatchRect.left; x < heightMatchRect.right; ++x)
+                for (int x = heightMatchRect.left; x < heightMatchRect.right; ++x)
                 {
-                    long nx, ny;
+                    uint32 nx, ny;
                     getNeighbourPoint(index, x, y, &nx, &ny);
                     float neighbourHeight = neighbour->getHeightAtPoint(nx, ny); 
                     if (!Math::RealEqual(neighbourHeight, getHeightAtPoint(x, y), 1e-3f))
@@ -3887,7 +3883,7 @@ namespace Ogre
 
     }
     //---------------------------------------------------------------------
-    void Terrain::getEdgeRect(NeighbourIndex index, long range, Rect* outRect) const
+    void Terrain::getEdgeRect(NeighbourIndex index, int32 range, Rect* outRect) const
     {
         // We make the edge rectangle 2 rows / columns at the edge of the tile
         // 2 because this copes with normal changes and potentially filtered
@@ -3992,7 +3988,7 @@ namespace Ogre
 
     }
     //---------------------------------------------------------------------
-    void Terrain::getNeighbourPoint(NeighbourIndex index, long x, long y, long *outx, long *outy) const
+    void Terrain::getNeighbourPoint(NeighbourIndex index, uint32 x, uint32 y, uint32 *outx, uint32 *outy) const
     {
         // Get the index of the point we should be looking at on a neighbour
         // in order to match up points
@@ -4031,13 +4027,13 @@ namespace Ogre
         };
     }
     //---------------------------------------------------------------------
-    void Terrain::getPointFromSelfOrNeighbour(long x, long y, Vector3* outpos) const
+    void Terrain::getPointFromSelfOrNeighbour(int32 x, int32 y, Vector3* outpos) const
     {
         if (x >= 0 && y >=0 && x < mSize && y < mSize)
             getPoint(x, y, outpos);
         else
         {
-            long nx, ny;
+            uint32 nx, ny;
             NeighbourIndex ni = NEIGHBOUR_EAST;
             getNeighbourPointOverflow(x, y, &ni, &nx, &ny);
             Terrain* neighbour = getNeighbour(ni);
@@ -4051,17 +4047,17 @@ namespace Ogre
             else
             {
                 // use our getPoint() after all, just clamp
-                x = std::min(x, mSize - 1L);
-                y = std::min(y, mSize - 1L);
-                x = std::max(x, 0L);
-                y = std::max(y, 0L);
+                x = std::min(x, mSize - 1);
+                y = std::min(y, mSize - 1);
+                x = std::max(x, 0);
+                y = std::max(y, 0);
                 getPoint(x, y, outpos);
             }
 
         }
     }
     //---------------------------------------------------------------------
-    void Terrain::getNeighbourPointOverflow(long x, long y, NeighbourIndex *outindex, long *outx, long *outy) const
+    void Terrain::getNeighbourPointOverflow(int32 x, int32 y, NeighbourIndex *outindex, uint32 *outx, uint32 *outy) const
     {
         if (x < 0)
         {
@@ -4487,7 +4483,7 @@ namespace Ogre
             mDeltaData = OGRE_ALLOC_T(float, numVertices, MEMCATEGORY_GEOMETRY);
             memset(mDeltaData, 0, sizeof(float) * numVertices);
 
-            mQuadTree = OGRE_NEW TerrainQuadTreeNode(this, 0, 0, 0, mSize, mNumLodLevels - 1, 0, 0);
+            mQuadTree = OGRE_NEW TerrainQuadTreeNode(this, 0, 0, 0, mSize, mNumLodLevels - 1, 0);
             mQuadTree->prepare();
 
             // calculate entire terrain

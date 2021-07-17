@@ -80,7 +80,8 @@ namespace Ogre
     {
         // With Ubuntu snaps absolute paths are relative to the snap package.
         char* env_SNAP = getenv("SNAP");
-        if(env_SNAP && !path.empty() && path[0] == '/') // only adjust absolute dirs
+        if (env_SNAP && !path.empty() && path[0] == '/' && // only adjust absolute dirs
+            !StringUtil::startsWith(path, "/snap")) // not a snap path already
             path = env_SNAP + path;
 
         return path;
@@ -107,17 +108,16 @@ namespace Ogre
             Ogre::String::size_type pos = appPath.rfind('/');
             if (pos != Ogre::String::npos)
                 appPath.erase(pos);
-        }
-        else
-        {
-            // couldn't find actual executable path, assume current working dir
-            appPath = ".";
+
+            // use application path as first config search path
+            mConfigPaths.push_back(appPath + '/');
+            // then search inside ../share/OGRE
+            mConfigPaths.push_back(StringUtil::normalizeFilePath(appPath + "/../share/OGRE/", false));
         }
 
-        // use application path as first config search path
-        mConfigPaths.push_back(appPath + '/');
-        // then search inside ../share/OGRE
-        mConfigPaths.push_back(appPath + "/../share/OGRE/");
+        // XDG_DATA_HOME (used by PIP)
+        if(const char* home = getenv("HOME"))
+            mConfigPaths.push_back(String(home)+"/.local/share/OGRE/");
         // then try system wide /etc
         mConfigPaths.push_back("/etc/OGRE/");
     }

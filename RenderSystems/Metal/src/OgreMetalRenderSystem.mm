@@ -57,7 +57,6 @@ namespace Ogre
         RenderSystem(),
         mInitialized( false ),
         mHardwareBufferManager( 0 ),
-        mShaderManager( 0 ),
         mMetalProgramFactory( 0 ),
         mCurrentIndexBuffer( 0 ),
         mCurrentVertexBuffer( 0 ),
@@ -117,9 +116,6 @@ namespace Ogre
             mMetalProgramFactory = 0;
         }
 
-        OGRE_DELETE mShaderManager;
-        mShaderManager = 0;
-
         OGRE_DELETE mTextureManager;
         mTextureManager = 0;
     }
@@ -151,7 +147,6 @@ namespace Ogre
         rsc->setNumTextureUnits(16);
         rsc->setNumVertexTextureUnits(16);
         rsc->setCapability(RSC_ANISOTROPY);
-        rsc->setCapability(RSC_DOT3);
         rsc->setCapability(RSC_TEXTURE_COMPRESSION);
 #if TARGET_OS_TV
         rsc->setCapability(RSC_TEXTURE_COMPRESSION_ASTC);
@@ -173,8 +168,6 @@ namespace Ogre
         rsc->setCapability(RSC_TWO_SIDED_STENCIL);
         rsc->setCapability(RSC_STENCIL_WRAP);
         rsc->setCapability(RSC_USER_CLIP_PLANES);
-        rsc->setCapability(RSC_VERTEX_FORMAT_UBYTE4);
-        rsc->setCapability(RSC_INFINITE_FAR_PLANE);
 #if OGRE_PLATFORM == OGRE_PLATFORM_APPLE_IOS
         if( [mActiveDevice->mDevice supportsFeatureSet:MTLFeatureSet_iOS_GPUFamily4_v1] )
 #endif
@@ -192,7 +185,6 @@ namespace Ogre
         rsc->setCapability(RSC_TEXTURE_3D);
         // rsc->setCapability(RSC_TEXTURE_SIGNED_INT);
         rsc->setCapability(RSC_VERTEX_PROGRAM);
-        rsc->setCapability(RSC_FRAGMENT_PROGRAM);
         rsc->setCapability(RSC_VERTEX_BUFFER_INSTANCE_DATA);
         rsc->setCapability(RSC_MIPMAP_LOD_BIAS);
         rsc->setCapability(RSC_ALPHA_TO_COVERAGE);
@@ -363,9 +355,9 @@ namespace Ogre
             vpParams->setNamedAutoConstant("mvpMtx", GpuProgramParameters::ACT_WORLDVIEWPROJ_MATRIX);
 
             // create const buffer to back VP (currently unused)
-            if(auto sz = vpParams->getFloatConstantList().size())
+            if(auto sz = vpParams->getConstantList().size())
             {
-                mAutoParamsBuffer.reset(new MetalHardwareBufferCommon(sz * sizeof(float), HBU_CPU_TO_GPU,
+                mAutoParamsBuffer.reset(new MetalHardwareBufferCommon(sz, HBU_CPU_TO_GPU,
                                                                       false, 4, NULL, &mDevice));
             }
         }
@@ -998,7 +990,7 @@ namespace Ogre
         // update const buffer
         #if 1
         [mActiveRenderEncoder setVertexBytes:params->getFloatPointer(0)
-            length:params->getFloatConstantList().size()*sizeof(float) atIndex:16];
+            length:params->getConstantList().size() atIndex:16];
         #else
         // TODO rather use this:
         size_t unused;
@@ -1010,7 +1002,7 @@ namespace Ogre
     }
     //-------------------------------------------------------------------------
     void MetalRenderSystem::clearFrameBuffer( unsigned int buffers, const ColourValue& colour,
-                                             Real depth, unsigned short stencil )
+                                             float depth, unsigned short stencil )
     {
         if( buffers & FBT_COLOUR )
         {
@@ -1251,21 +1243,13 @@ namespace Ogre
     void MetalRenderSystem::initialiseFromRenderSystemCapabilities(RenderSystemCapabilities* caps, RenderTarget* primary)
     {
         //DepthBuffer::DefaultDepthBufferFormat = PF_D32_FLOAT_X24_S8_UINT;
-        mShaderManager = OGRE_NEW GpuProgramManager();
         mMetalProgramFactory = new MetalProgramFactory( &mDevice );
         HighLevelGpuProgramManager::getSingleton().addFactory( mMetalProgramFactory );
     }
     //-------------------------------------------------------------------------
-    void MetalRenderSystem::setStencilCheckEnabled(bool enabled)
+    void MetalRenderSystem::setStencilState(const StencilState& state)
     {
-        // Save this info so we can transfer it into a new encoder if necessary
-        mStencilEnabled = enabled;
-    }
-    void MetalRenderSystem::setStencilBufferParams( CompareFunction func,
-        uint32 refValue, uint32 compareMask, uint32 writeMask, StencilOperation stencilFailOp,
-        StencilOperation depthFailOp, StencilOperation passOp,
-        bool twoSidedOperation, bool readBackAsTexture )
-    {
+        mStencilEnabled = state.enabled;
         // There are two main cases:
         // 1. The active render encoder is valid and will be subsequently used for drawing.
         //      We need to set the stencil reference value on this encoder. We do this below.
@@ -1275,10 +1259,10 @@ namespace Ogre
 
         if (mStencilEnabled)
         {
-            mStencilRefValue = refValue;
+            mStencilRefValue = state.referenceValue;
 
             if( mActiveRenderEncoder )
-                [mActiveRenderEncoder setStencilReferenceValue:refValue];
+                [mActiveRenderEncoder setStencilReferenceValue:mStencilRefValue];
         }
     }
  }

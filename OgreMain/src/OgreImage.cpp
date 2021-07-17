@@ -37,7 +37,7 @@ namespace Ogre {
     void ImageCodec::decode(const DataStreamPtr& input, const Any& output) const
     {
         OGRE_IGNORE_DEPRECATED_BEGIN
-        Codec::DecodeResult res = decode(input);
+        DecodeResult res = decode(input);
         OGRE_IGNORE_DEPRECATED_END
 
         auto pData = static_cast<ImageCodec::ImageData*>(res.second.get());
@@ -98,8 +98,8 @@ namespace Ogre {
         : mWidth(0),
         mHeight(0),
         mDepth(0),
-        mBufSize(0),
         mNumMipmaps(0),
+        mBufSize(0),
         mFlags(0),
         mFormat(format),
         mBuffer( NULL ),
@@ -179,7 +179,7 @@ namespace Ogre {
 
     void Image::setTo(const ColourValue& col)
     {
-        OgreAssert(mBuffer, "image is empty");
+        OgreAssert(mBuffer, "No image data loaded");
         if(col == ColourValue::ZERO)
         {
             memset(mBuffer, 0, getSize());
@@ -197,14 +197,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------------
     Image & Image::flipAroundY()
     {
-        if( !mBuffer )
-        {
-            OGRE_EXCEPT( 
-                Exception::ERR_INTERNAL_ERROR,
-                "Can not flip an uninitialised texture",
-                "Image::flipAroundY" );
-        }
-        
+        OgreAssert(mBuffer, "No image data loaded");
         mNumMipmaps = 0; // Image operations lose precomputed mipmaps
 
         ushort y;
@@ -254,13 +247,7 @@ namespace Ogre {
     //-----------------------------------------------------------------------------
     Image & Image::flipAroundX()
     {
-        if( !mBuffer )
-        {
-            OGRE_EXCEPT( 
-                Exception::ERR_INTERNAL_ERROR,
-                "Can not flip an uninitialised texture",
-                "Image::flipAroundX" );
-        }
+        OgreAssert(mBuffer, "No image data loaded");
         
         mNumMipmaps = 0; // Image operations lose precomputed mipmaps
         PixelUtil::bulkPixelVerticalFlip(getPixelBox());
@@ -269,10 +256,8 @@ namespace Ogre {
     }
 
     //-----------------------------------------------------------------------------
-    Image& Image::loadDynamicImage( uchar* pData, uint32 uWidth, uint32 uHeight,
-        uint32 depth,
-        PixelFormat eFormat, bool autoDelete, 
-        size_t numFaces, uint32 numMipMaps)
+    Image& Image::loadDynamicImage(uchar* pData, uint32 uWidth, uint32 uHeight, uint32 depth,
+                                   PixelFormat eFormat, bool autoDelete, uint32 numFaces, uint32 numMipMaps)
     {
 
         freeMemory();
@@ -291,34 +276,22 @@ namespace Ogre {
             mFlags |= IF_3D_TEXTURE;
         if(numFaces == 6)
             mFlags |= IF_CUBEMAP;
-        if(numFaces != 6 && numFaces != 1)
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, 
-            "Number of faces currently must be 6 or 1.", 
-            "Image::loadDynamicImage");
+        OgreAssert(numFaces == 6 || numFaces == 1, "Invalid number of faces");
 
         mBufSize = calculateSize(numMipMaps, numFaces, uWidth, uHeight, depth, eFormat);
         mBuffer = pData;
         mAutoDelete = autoDelete;
 
         return *this;
-
     }
 
     //-----------------------------------------------------------------------------
-    Image & Image::loadRawData(
-        const DataStreamPtr& stream,
-        uint32 uWidth, uint32 uHeight, uint32 uDepth,
-        PixelFormat eFormat,
-        size_t numFaces, uint32 numMipMaps)
+    Image& Image::loadRawData(const DataStreamPtr& stream, uint32 uWidth, uint32 uHeight, uint32 uDepth,
+                              PixelFormat eFormat, uint32 numFaces, uint32 numMipMaps)
     {
 
         size_t size = calculateSize(numMipMaps, numFaces, uWidth, uHeight, uDepth, eFormat);
-        if (size != stream->size())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, 
-                "Stream size does not match calculated image size", 
-                "Image::loadRawData");
-        }
+        OgreAssert(size == stream->size(), "Wrong stream size");
 
         uchar *buffer = OGRE_ALLOC_T(uchar, size, MEMCATEGORY_GENERAL);
         stream->read(buffer, size);
@@ -451,7 +424,7 @@ namespace Ogre {
         return mHeight;
     }
     //-----------------------------------------------------------------------------
-    size_t Image::getNumFaces(void) const
+    uint32 Image::getNumFaces(void) const
     {
         if(hasFlag(IF_CUBEMAP))
             return 6;
@@ -486,7 +459,7 @@ namespace Ogre {
         if( gamma == 1.0f )
             return;
 
-        OgreAssert( bpp == 24 || bpp == 32, "only 24/32-bit supported");
+        OgreAssert( bpp == 24 || bpp == 32, "");
 
         uint stride = bpp >> 3;
         
@@ -611,7 +584,7 @@ namespace Ogre {
 
     //-----------------------------------------------------------------------------    
 
-    ColourValue Image::getColourAt(size_t x, size_t y, size_t z) const
+    ColourValue Image::getColourAt(uint32 x, uint32 y, uint32 z) const
     {
         ColourValue rval;
         PixelUtil::unpackColour(&rval, mFormat, getData(x, y, z));
@@ -620,14 +593,14 @@ namespace Ogre {
 
     //-----------------------------------------------------------------------------    
     
-    void Image::setColourAt(ColourValue const &cv, size_t x, size_t y, size_t z)
+    void Image::setColourAt(ColourValue const &cv, uint32 x, uint32 y, uint32 z)
     {
         PixelUtil::packColour(cv, mFormat, getData(x, y, z));
     }
 
     //-----------------------------------------------------------------------------    
 
-    PixelBox Image::getPixelBox(size_t face, size_t mipmap) const
+    PixelBox Image::getPixelBox(uint32 face, uint32 mipmap) const
     {
         // Image data is arranged as:
         // face 0, top level (mip 0)
@@ -637,24 +610,19 @@ namespace Ogre {
         // face 1, mip 1
         // face 1, mip 2
         // etc
-        if(mipmap > getNumMipmaps())
-            OGRE_EXCEPT( Exception::ERR_NOT_IMPLEMENTED,
-            "Mipmap index out of range",
-            "Image::getPixelBox" ) ;
-        if(face >= getNumFaces())
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Face index out of range",
-            "Image::getPixelBox");
+        OgreAssert(mipmap <= getNumMipmaps(), "out of range");
+        OgreAssert(face < getNumFaces(), "out of range");
         // Calculate mipmap offset and size
         uint8 *offset = mBuffer;
         // Base offset is number of full faces
         uint32 width = getWidth(), height=getHeight(), depth=getDepth();
-        size_t numMips = getNumMipmaps();
+        uint32 numMips = getNumMipmaps();
 
         // Figure out the offsets 
         size_t fullFaceSize = 0;
         size_t finalFaceSize = 0;
         uint32 finalWidth = 0, finalHeight = 0, finalDepth = 0;
-        for(size_t mip=0; mip <= numMips; ++mip)
+        for(uint32 mip=0; mip <= numMips; ++mip)
         {
             if (mip == mipmap)
             {
@@ -677,12 +645,12 @@ namespace Ogre {
         PixelBox src(finalWidth, finalHeight, finalDepth, getFormat(), offset);
         return src;
     }
-    //-----------------------------------------------------------------------------    
-    size_t Image::calculateSize(size_t mipmaps, size_t faces, uint32 width, uint32 height, uint32 depth, 
-        PixelFormat format)
+    //-----------------------------------------------------------------------------
+    size_t Image::calculateSize(uint32 mipmaps, uint32 faces, uint32 width, uint32 height, uint32 depth,
+                                PixelFormat format)
     {
         size_t size = 0;
-        for(size_t mip=0; mip<=mipmaps; ++mip)
+        for(uint32 mip=0; mip<=mipmaps; ++mip)
         {
             size += PixelUtil::getMemorySize(width, height, depth, format)*faces; 
             if(width!=1) width /= 2;
@@ -724,7 +692,7 @@ namespace Ogre {
                        rgb.getDepth() == alpha.getDepth(),
                    "Images must be the same dimensions");
         OgreAssert(rgb.getNumMipmaps() == alpha.getNumMipmaps() && rgb.getNumFaces() == alpha.getNumFaces(),
-                   "Images must have the same number of surfaces (faces & mipmaps)");
+                   "Images must have the same number of surfaces");
 
         // Format check
         OgreAssert(PixelUtil::getComponentCount(fmt) == 4, "Target format must have 4 components");
@@ -733,10 +701,10 @@ namespace Ogre {
                      PixelUtil::isCompressed(alpha.getFormat())),
                    "Compressed formats are not supported in this method");
 
-        size_t numFaces = rgb.getNumFaces();
+        uint32 numFaces = rgb.getNumFaces();
         create(fmt, rgb.getWidth(), rgb.getHeight(), rgb.getDepth(), numFaces, rgb.getNumMipmaps());
 
-        for (size_t face = 0; face < numFaces; ++face)
+        for (uint32 face = 0; face < numFaces; ++face)
         {
             for (uint8 mip = 0; mip <= mNumMipmaps; ++mip)
             {
@@ -749,11 +717,11 @@ namespace Ogre {
                 PixelBox srcAlpha = alpha.getPixelBox(face, mip);
                 uchar* psrcAlpha = srcAlpha.data;
                 uchar* pdst = dst.data;
-                for (size_t d = 0; d < mDepth; ++d)
+                for (uint32 d = 0; d < mDepth; ++d)
                 {
-                    for (size_t y = 0; y < mHeight; ++y)
+                    for (uint32 y = 0; y < mHeight; ++y)
                     {
-                        for (size_t x = 0; x < mWidth; ++x)
+                        for (uint32 x = 0; x < mWidth; ++x)
                         {
                             ColourValue colRGBA, colA;
                             // read RGB back from dest to save having another pointer

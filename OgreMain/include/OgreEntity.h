@@ -86,7 +86,7 @@ namespace Ogre {
         typedef std::set<Entity*> EntitySet;
         typedef std::vector<std::pair<unsigned short, bool>> SchemeHardwareAnimMap;
         typedef std::vector<SubEntity*> SubEntityList;
-    protected:
+    private:
 
         /** Private constructor (instances cannot be created directly).
         */
@@ -309,7 +309,7 @@ namespace Ogre {
     public:
         /// Contains the child objects (attached to bones) indexed by name.
         typedef std::vector<MovableObject*> ChildObjectList;
-    protected:
+    private:
         ChildObjectList mChildObjectList;
 
 
@@ -319,14 +319,8 @@ namespace Ogre {
         ShadowRenderableList mShadowRenderables;
 
         /** Nested class to allow entity shadows. */
-        class _OgreExport EntityShadowRenderable : public ShadowRenderable
+        class EntityShadowRenderable : public ShadowRenderable
         {
-        protected:
-            Entity* mParent;
-            /// Shared link to position buffer.
-            HardwareVertexBufferSharedPtr mPositionBuffer;
-            /// Shared link to w-coord buffer (optional).
-            HardwareVertexBufferSharedPtr mWBuffer;
             /// Link to current vertex data used to bind (maybe changes).
             const VertexData* mCurrentVertexData;
             /// Link to SubEntity, only present if SubEntity has it's own geometry.
@@ -335,20 +329,15 @@ namespace Ogre {
             ushort mOriginalPosBufferBinding;
 
         public:
-            EntityShadowRenderable(Entity* parent,
-                HardwareIndexBufferSharedPtr* indexBuffer, const VertexData* vertexData,
+            EntityShadowRenderable(MovableObject* parent,
+                const HardwareIndexBufferSharedPtr& indexBuffer, const VertexData* vertexData,
                 bool createSeparateLightCap, SubEntity* subent, bool isLightCap = false);
-            ~EntityShadowRenderable();
             
             /// Create the separate light cap if it doesn't already exists.
             void _createSeparateLightCap();
-            void getWorldTransforms(Matrix4* xform) const override;
-            HardwareVertexBufferSharedPtr getPositionBuffer(void) { return mPositionBuffer; }
-            HardwareVertexBufferSharedPtr getWBuffer(void) { return mWBuffer; }
             /// Rebind the source positions (for temp buffer users).
             void rebindPositionBuffer(const VertexData* vertexData, bool force);
             bool isVisible(void) const override;
-            virtual void rebindIndexBuffer(const HardwareIndexBufferSharedPtr& indexBuffer) override;
         };
     public:
         /** Default destructor.
@@ -360,9 +349,8 @@ namespace Ogre {
         const MeshPtr& getMesh(void) const;
 
         /** Gets a pointer to a SubEntity, ie a part of an Entity.
-         @deprecated use getSubEntities()
         */
-        SubEntity* getSubEntity(size_t index) const;
+        SubEntity* getSubEntity(size_t index) const { return mSubEntityList.at(index); }
 
         /** Gets a pointer to a SubEntity by name
         @remarks 
@@ -371,9 +359,8 @@ namespace Ogre {
         SubEntity* getSubEntity( const String& name ) const;
 
         /** Retrieves the number of SubEntity objects making up this entity.
-        * @deprecated use getSubEntities()
         */
-        size_t getNumSubEntities(void) const;
+        size_t getNumSubEntities(void) const { return mSubEntityList.size(); }
 
         /** Retrieves SubEntity objects making up this entity.
         */
@@ -597,9 +584,8 @@ namespace Ogre {
 
         EdgeData* getEdgeList(void) override;
         const ShadowRenderableList& getShadowVolumeRenderableList(
-            ShadowTechnique shadowTechnique, const Light* light,
-            HardwareIndexBufferSharedPtr* indexBuffer, size_t* indexBufferUsedSize,
-            bool extrudeVertices, Real extrusionDistance, unsigned long flags = 0) override;
+            const Light* light, const HardwareIndexBufferPtr& indexBuffer,
+            size_t& indexBufferUsedSize, float extrusionDistance, int flags = 0) override;
 
         /** Internal method for retrieving bone matrix information. */
         const Affine3* _getBoneMatrices(void) const { return mBoneMatrices;}
@@ -873,7 +859,7 @@ namespace Ogre {
     /** Factory object for creating Entity instances */
     class _OgreExport EntityFactory : public MovableObjectFactory
     {
-    protected:
+    private:
         MovableObject* createInstanceImpl( const String& name, const NameValuePairList* params);
     public:
         EntityFactory() {}

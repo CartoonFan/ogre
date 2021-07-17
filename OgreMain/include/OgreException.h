@@ -41,12 +41,12 @@ THE SOFTWARE.
 #   if OGRE_DEBUG_MODE
 #       define OgreAssert( a, b ) assert( (a) && (b) )
 #   else
-#       define OgreAssert( a, b ) if( !(a) ) OGRE_EXCEPT_2( Ogre::Exception::ERR_RT_ASSERTION_FAILED, (b) )
+#       define OgreAssert( a, b ) if( !(a) ) OGRE_EXCEPT_2( Ogre::Exception::ERR_RT_ASSERTION_FAILED, (#a " failed. " b) )
 #   endif
 
 // EXCEPTIONS mode
 #elif OGRE_ASSERT_MODE == 2
-#   define OgreAssert( a, b ) if( !(a) ) OGRE_EXCEPT_2( Ogre::Exception::ERR_RT_ASSERTION_FAILED, (b) )
+#   define OgreAssert( a, b ) if( !(a) ) OGRE_EXCEPT_2( Ogre::Exception::ERR_RT_ASSERTION_FAILED, (#a " failed. " b) )
 // STANDARD mode
 #else
 /** Checks a condition at runtime and throws exception/ aborts if it fails.
@@ -99,7 +99,7 @@ namespace Ogre {
         String description;
         String source;
         const char* file;
-        mutable String fullDesc; // storage for char* returned by what()
+        String fullDesc; // storage for char* returned by what()
     public:
         /** Static definitions of error codes.
             @todo
@@ -145,7 +145,7 @@ namespace Ogre {
                 the place in which OGRE found the problem, and a text
                 description from the 3D rendering library, if available.
         */
-        virtual const String& getFullDescription(void) const;
+        const String& getFullDescription(void) const { return fullDesc; }
 
         /** Gets the source function.
         */
@@ -166,7 +166,7 @@ namespace Ogre {
         const String &getDescription(void) const { return description; }
 
         /// Override std::exception::what
-        const char* what() const throw() { return getFullDescription().c_str(); }
+        const char* what() const throw() { return fullDesc.c_str(); }
         
     };
 

@@ -58,6 +58,7 @@ Sample_ShaderSystem::Sample_ShaderSystem() :
                     ;
     mPointLightNode = NULL;
     mReflectionMapFactory = NULL;
+    mTextureAtlasFactory = NULL;
     mInstancedViewportsEnable = false;
     mInstancedViewportsSubRenderState = NULL;
     mInstancedViewportsFactory = NULL;
@@ -147,10 +148,6 @@ void Sample_ShaderSystem::itemSelected(SelectMenu* menu)
         int curShadowTypeIndex = menu->getSelectionIndex();
 
         applyShadowType(curShadowTypeIndex);        
-    }
-    else if(menu == mLanguageMenu)
-    {
-        ShaderGenerator::getSingletonPtr()->setTargetLanguage(menu->getSelectedItem());     
     }
 }
 
@@ -398,30 +395,8 @@ void Sample_ShaderSystem::setupContent()
 //-----------------------------------------------------------------------
 void Sample_ShaderSystem::setupUI()
 {
-    // Create language selection 
-    mLanguageMenu = mTrayMgr->createLongSelectMenu(TL_TOPLEFT, "LangMode", "Language", 220, 120, 10);   
-
-    // Use GLSL ES in case of OpenGL ES 2 render system.
-    if (Ogre::Root::getSingletonPtr()->getRenderSystem()->getName().find("OpenGL ES 2") != String::npos)
-    {
-        mLanguageMenu->addItem("glsles");
-        mShaderGenerator->setTargetLanguage("glsles");      
-    }
-    
-    // Use GLSL in case of OpenGL render system.
-    else if (Ogre::Root::getSingletonPtr()->getRenderSystem()->getName().find("OpenGL") != String::npos)
-    {
-        mLanguageMenu->addItem("glsl");
-        mShaderGenerator->setTargetLanguage("glsl");        
-    }
-
-    // Use HLSL in case of D3D9 render system.
-    else if (Ogre::Root::getSingletonPtr()->getRenderSystem()->getName().find("Direct3D9") != String::npos)
-    {
-        mLanguageMenu->addItem("hlsl");
-        mShaderGenerator->setTargetLanguage("hlsl");                
-    }
-    mLanguageMenu->addItem("cg");
+    // Create language label
+    mLanguage = mTrayMgr->createLabel(TL_TOPLEFT, "Language", "Language: "+mShaderGenerator->getTargetLanguage(), 220);
 
     // create check boxes to toggle lights. 
     mDirLightCheckBox = mTrayMgr->createCheckBox(TL_TOPLEFT, DIRECTIONAL_LIGHT_NAME, "Directional Light", 220);
@@ -580,16 +555,16 @@ void Sample_ShaderSystem::setPerPixelFogEnable( bool enable )
         const SubRenderStateList& subRenderStateList = schemRenderState->getSubRenderStates();
         SubRenderStateListConstIterator it = subRenderStateList.begin();
         SubRenderStateListConstIterator itEnd = subRenderStateList.end();
-        FFPFog* fogSubRenderState = NULL;
+        SubRenderState* fogSubRenderState = NULL;
         
         // Search for the fog sub state.
         for (; it != itEnd; ++it)
         {
             SubRenderState* curSubRenderState = *it;
 
-            if (curSubRenderState->getType() == FFPFog::Type)
+            if (curSubRenderState->getType() == "FFP_Fog")
             {
-                fogSubRenderState = static_cast<FFPFog*>(curSubRenderState);
+                fogSubRenderState = curSubRenderState;
                 break;
             }
         }
@@ -597,20 +572,13 @@ void Sample_ShaderSystem::setPerPixelFogEnable( bool enable )
         // Create the fog sub render state if need to.
         if (fogSubRenderState == NULL)
         {           
-            fogSubRenderState = mShaderGenerator->createSubRenderState<FFPFog>();
+            fogSubRenderState = mShaderGenerator->createSubRenderState("FFP_Fog");
             schemRenderState->addTemplateSubRenderState(fogSubRenderState);
         }
             
         
         // Select the desired fog calculation mode.
-        if (mPerPixelFogEnable)
-        {
-            fogSubRenderState->setCalcMode(FFPFog::CM_PER_PIXEL);
-        }
-        else
-        {
-            fogSubRenderState->setCalcMode(FFPFog::CM_PER_VERTEX);
-        }
+        fogSubRenderState->setParameter("calc_mode", mPerPixelFogEnable ? "per_pixel" : "per_vertex");
 
         // Invalidate the scheme in order to re-generate all shaders based technique related to this scheme.
         mShaderGenerator->invalidateScheme(Ogre::RTShader::ShaderGenerator::DEFAULT_SCHEME_NAME);
@@ -685,7 +653,7 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
 #ifdef RTSHADER_SYSTEM_BUILD_CORE_SHADERS
             if (mCurLightingModel == SSLM_PerVertexLighting)
             {
-                RTShader::SubRenderState* perPerVertexLightModel = mShaderGenerator->createSubRenderState<RTShader::FFPLighting>();
+                RTShader::SubRenderState* perPerVertexLightModel = mShaderGenerator->createSubRenderState("FFP_Lighting");
 
                 renderState->addTemplateSubRenderState(perPerVertexLightModel); 
             }
@@ -694,7 +662,7 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
 #ifdef RTSHADER_SYSTEM_BUILD_EXT_SHADERS
             else if (mCurLightingModel == SSLM_PerPixelLighting)
             {
-                RTShader::SubRenderState* perPixelLightModel = mShaderGenerator->createSubRenderState<RTShader::PerPixelLighting>();
+                RTShader::SubRenderState* perPixelLightModel = mShaderGenerator->createSubRenderState("SGX_PerPixelLighting");
                 
                 renderState->addTemplateSubRenderState(perPixelLightModel);             
             }
@@ -703,10 +671,10 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
                 // Apply normal map only on main entity.
                 if (entity->getName() == MAIN_ENTITY_NAME)
                 {
-                    RTShader::NormalMapLighting* normalMapSubRS = mShaderGenerator->createSubRenderState<RTShader::NormalMapLighting>();
+                    RTShader::SubRenderState* normalMapSubRS = mShaderGenerator->createSubRenderState("NormalMap");
                     
-                    normalMapSubRS->setNormalMapSpace(RTShader::NormalMapLighting::NMS_TANGENT);
-                    normalMapSubRS->setNormalMapTextureName("Panels_Normal_Tangent.png");   
+                    normalMapSubRS->setParameter("normalmap_space", "tangent_space");
+                    normalMapSubRS->setParameter("texture", "Panels_Normal_Tangent.png");
 
                     renderState->addTemplateSubRenderState(normalMapSubRS);
                 }
@@ -714,7 +682,7 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
                 // It is secondary entity -> use simple per pixel lighting.
                 else
                 {
-                    RTShader::SubRenderState* perPixelLightModel = mShaderGenerator->createSubRenderState<RTShader::PerPixelLighting>();
+                    RTShader::SubRenderState* perPixelLightModel = mShaderGenerator->createSubRenderState("SGX_PerPixelLighting");
                     renderState->addTemplateSubRenderState(perPixelLightModel);
                 }               
             }
@@ -723,10 +691,10 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
                 // Apply normal map only on main entity.
                 if (entity->getName() == MAIN_ENTITY_NAME)
                 {
-                    RTShader::NormalMapLighting* normalMapSubRS = mShaderGenerator->createSubRenderState<RTShader::NormalMapLighting>();
+                    RTShader::SubRenderState* normalMapSubRS = mShaderGenerator->createSubRenderState("NormalMap");
                 
-                    normalMapSubRS->setNormalMapSpace(RTShader::NormalMapLighting::NMS_OBJECT);
-                    normalMapSubRS->setNormalMapTextureName("Panels_Normal_Obj.png");   
+                    normalMapSubRS->setParameter("normalmap_space", "object_space");
+                    normalMapSubRS->setParameter("texture", "Panels_Normal_Obj.png");
 
                     renderState->addTemplateSubRenderState(normalMapSubRS);
                 }
@@ -734,7 +702,7 @@ void Sample_ShaderSystem::generateShaders(Entity* entity)
                 // It is secondary entity -> use simple per pixel lighting.
                 else
                 {
-                    RTShader::SubRenderState* perPixelLightModel = mShaderGenerator->createSubRenderState<RTShader::PerPixelLighting>();
+                    RTShader::SubRenderState* perPixelLightModel = mShaderGenerator->createSubRenderState("SGX_PerPixelLighting");
                     renderState->addTemplateSubRenderState(perPixelLightModel);
                 }               
             }
@@ -1115,25 +1083,10 @@ void Sample_ShaderSystem::exportRTShaderSystemMaterial(const String& fileName, c
 //-----------------------------------------------------------------------
 void Sample_ShaderSystem::testCapabilities( const RenderSystemCapabilities* caps )
 {
-    // Check if D3D10 shader is supported - is so - then we are OK.
-    if (GpuProgramManager::getSingleton().isSyntaxSupported("ps_4_0"))
-    {
+    if(RTShader::ShaderGenerator::getSingleton().getTargetLanguage() != "null")
         return;
-    }
 
-    // Check if GLSL type shaders are supported - is so - then we are OK.
-    if (GpuProgramManager::getSingleton().isSyntaxSupported("glsles") ||
-        GpuProgramManager::getSingleton().isSyntaxSupported("glsl"))
-    {
-        return;
-    }
-
-    if (!GpuProgramManager::getSingleton().isSyntaxSupported("arbfp1") &&
-        !GpuProgramManager::getSingleton().isSyntaxSupported("ps_2_0"))
-    {
-        OGRE_EXCEPT(Exception::ERR_NOT_IMPLEMENTED, "Your card does not support shader model 2, "
-            "so you cannot run this sample. Sorry!", "Sample_ShaderSystem::testCapabilities");
-    }
+    OGRE_EXCEPT(Exception::ERR_NOT_IMPLEMENTED, "RTSS not supported on your system");
 }
 
 //-----------------------------------------------------------------------
@@ -1142,6 +1095,9 @@ void Sample_ShaderSystem::loadResources()
     // Create and add the custom reflection map shader extension factory to the shader generator.   
     mReflectionMapFactory = OGRE_NEW ShaderExReflectionMapFactory;
     mShaderGenerator->addSubRenderStateFactory(mReflectionMapFactory);
+
+    mTextureAtlasFactory = OGRE_NEW TextureAtlasSamplerFactory;
+    mShaderGenerator->addSubRenderStateFactory(mTextureAtlasFactory);
 
     createPrivateResourceGroup();
 }
@@ -1157,7 +1113,7 @@ void Sample_ShaderSystem::createPrivateResourceGroup()
     rgm.createResourceGroup(SAMPLE_MATERIAL_GROUP, false);
     rgm.addResourceLocation(mExportMaterialPath, "FileSystem", SAMPLE_MATERIAL_GROUP);      
     rgm.initialiseResourceGroup(SAMPLE_MATERIAL_GROUP);
-    rgm.loadResourceGroup(SAMPLE_MATERIAL_GROUP, true);
+    rgm.loadResourceGroup(SAMPLE_MATERIAL_GROUP);
 }
 
 //-----------------------------------------------------------------------
@@ -1175,6 +1131,14 @@ void Sample_ShaderSystem::unloadResources()
         mShaderGenerator->removeSubRenderStateFactory(mReflectionMapFactory);
         OGRE_DELETE mReflectionMapFactory;
         mReflectionMapFactory = NULL;
+    }
+
+    if (mTextureAtlasFactory != NULL)
+    {
+        mTextureAtlasFactory->destroyAllInstances();
+        mShaderGenerator->removeSubRenderStateFactory(mTextureAtlasFactory);
+        OGRE_DELETE mTextureAtlasFactory;
+        mTextureAtlasFactory = NULL;
     }
 }
 

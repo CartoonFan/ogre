@@ -23,7 +23,6 @@
 %}
 #ifdef HAVE_IMGUI
 %{
-#include "imgui.h"
 #include "OgreImGuiOverlay.h"
 %}
 #endif
@@ -40,10 +39,6 @@
 #ifdef SWIGCSHARP
 %csmethodmodifiers Ogre::OverlaySystem::eventOccurred "public";
 #endif
-
-// DisplayString is implicitly constructable from String
-// this breaks when using get*, will fix this by switching to String with 1.13
-#define DisplayString String
 
 %include "OgreOverlayPrerequisites.h"
 SHARED_PTR(Font);
@@ -67,6 +62,7 @@ SHARED_PTR(OverlayElement);
   }
 }
 %include "OgreOverlayElement.h"
+%feature("director") Ogre::OverlayElementFactory;
 %include "OgreOverlayElementFactory.h"
 SHARED_PTR(OverlayContainer);
 %ignore Ogre::OverlayContainer::getChildIterator;
@@ -87,26 +83,5 @@ SHARED_PTR(TextAreaOverlayElement);
 %include "OgreTextAreaOverlayElement.h"
 
 #ifdef HAVE_IMGUI
-%include stdint.i
-%include typemaps.i
-
 %include "OgreImGuiOverlay.h"
-
-/// Imgui
-// ignore va list methods
-%ignore ImGui::TextV;
-%ignore ImGui::TextColoredV;
-%ignore ImGui::TextDisabledV;
-%ignore ImGui::TextWrappedV;
-%ignore ImGui::LabelTextV;
-%ignore ImGui::BulletTextV;
-%ignore ImGui::TreeNodeV;
-%ignore ImGui::TreeNodeExV;
-%ignore ImGui::SetTooltipV;
-%ignore ImGuiTextBuffer::appendfv;
-
-%apply bool* INOUT { bool* p_open };
-%apply float* INOUT { float* v };
-%apply int* INOUT { int* v };
-%include "imgui.h"
 #endif

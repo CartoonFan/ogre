@@ -138,37 +138,30 @@ if (OGRE_CONFIG_THREADS)
 endif ()
 
 if (OGRE_CONFIG_ENABLE_DDS)
-  list(APPEND HEADER_FILES include/OgreDDSCodec.h)
-  list(APPEND SOURCE_FILES src/OgreDDSCodec.cpp)
+  list(APPEND SOURCE_FILES src/OgreDDSCodec.cpp src/OgreDDSCodec.h)
 endif ()
 
 if (OGRE_CONFIG_ENABLE_PVRTC)
-  list(APPEND HEADER_FILES include/OgrePVRTCCodec.h)
-  list(APPEND SOURCE_FILES src/OgrePVRTCCodec.cpp)
+  list(APPEND HEADER_FILES )
+  list(APPEND SOURCE_FILES src/OgrePVRTCCodec.cpp src/OgrePVRTCCodec.h)
 endif ()
 
 if (OGRE_CONFIG_ENABLE_ETC)
-  list(APPEND HEADER_FILES include/OgreETCCodec.h)
-  list(APPEND SOURCE_FILES src/OgreETCCodec.cpp)
+  list(APPEND SOURCE_FILES src/OgreETCCodec.cpp src/OgreETCCodec.h)
 endif ()
 
 if (OGRE_CONFIG_ENABLE_ASTC)
-  list(APPEND HEADER_FILES include/OgreASTCCodec.h)
-  list(APPEND SOURCE_FILES src/OgreASTCCodec.cpp)
+  list(APPEND SOURCE_FILES src/OgreASTCCodec.cpp src/OgreASTCCodec.h)
 endif ()
 
 if (OGRE_CONFIG_ENABLE_ZIP)
-  include_directories("${ZZip_INCLUDE_DIRS}")
+  include_directories(src/zip)
   list(APPEND HEADER_FILES include/OgreZip.h)
-  list(APPEND SOURCE_FILES src/OgreZip.cpp)
+  list(APPEND SOURCE_FILES src/OgreZip.cpp src/zip/zip.c)
 
   if(ANDROID)
-    ADD_DEFINITIONS(-DZZIP_OMIT_CONFIG_H)
     list(APPEND PLATFORM_SOURCE_FILES src/Android/OgreAPKZipArchive.cpp)
   endif()
-
-  list(APPEND LIBRARIES "${ZZip_LIBRARIES}")
-  list(APPEND LIBRARIES ZLIB::ZLIB)
 endif ()
 
 if(OGRE_CONFIG_FILESYSTEM_UNICODE)
@@ -222,7 +215,7 @@ if (APPLE)
     set_target_properties(OgreMain PROPERTIES INSTALL_NAME_DIR "OGRE")
   else()
     if(OGRE_BUILD_LIBS_AS_FRAMEWORKS)
-      set(OGRE_OSX_BUILD_CONFIGURATION "$ENV{PLATFORM_NAME}/$ENV{CONFIGURATION}")
+      set(OGRE_OSX_BUILD_CONFIGURATION "${CMAKE_OSX_SYSROOT}/$(CONFIGURATION)")
       add_custom_command(TARGET OgreMain POST_BUILD
           COMMAND mkdir ARGS -p ${PROJECT_BINARY_DIR}/lib/${OGRE_OSX_BUILD_CONFIGURATION}/Ogre.framework/Headers/Threading
           COMMAND ditto
@@ -250,7 +243,7 @@ endif ()
 target_link_libraries(OgreMain PUBLIC ${PLATFORM_LIBS} PRIVATE ${LIBRARIES} ${CMAKE_DL_LIBS})
 
 # specify a precompiled header to use
-add_native_precompiled_header(OgreMain "${CMAKE_CURRENT_SOURCE_DIR}/src/OgreStableHeaders.h")
+add_native_precompiled_header(OgreMain "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/OgreStableHeaders.h>")
 
 # install OgreMain
 ogre_config_lib(OgreMain TRUE)

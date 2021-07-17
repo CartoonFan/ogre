@@ -288,7 +288,7 @@ namespace Ogre
         static const uint32 TERRAINGENERALINFO_CHUNK_ID;
         static const uint16 TERRAINGENERALINFO_CHUNK_VERSION;
 
-        static const size_t LOD_MORPH_CUSTOM_PARAM;
+        static const uint32 LOD_MORPH_CUSTOM_PARAM;
 
         typedef std::vector<Real> RealVector;
 
@@ -587,7 +587,7 @@ namespace Ogre
             void warmStart(size_t numInstances, uint16 terrainSize, uint16 maxBatchSize, 
                 uint16 minBatchSize);
 
-        protected:
+        private:
             typedef std::list<HardwareVertexBufferSharedPtr> VBufList;
             VBufList mFreePosBufList;
             VBufList mFreeDeltaBufList;
@@ -789,13 +789,13 @@ namespace Ogre
 
         /** Get a pointer to the height data for a given point. 
         */
-        float* getHeightData(long x, long y) const;
+        float* getHeightData(uint32 x, uint32 y) const;
 
         /** Get the height data for a given terrain point. 
         @param x, y Discrete coordinates in terrain vertices, values from 0 to size-1,
             left/right bottom/top
         */
-        float getHeightAtPoint(long x, long y) const;
+        float getHeightAtPoint(uint32 x, uint32 y) const;
 
         /** Set the height data for a given terrain point. 
         @note this doesn't take effect until you call update()
@@ -803,7 +803,7 @@ namespace Ogre
         left/right bottom/top
         @param h The new height
         */
-        void setHeightAtPoint(long x, long y, float h);
+        void setHeightAtPoint(uint32 x, uint32 y, float h);
 
         /** Get the height data for a given terrain position. 
         @param x, y Position in terrain space, values from 0 to 1 left/right bottom/top
@@ -829,33 +829,31 @@ namespace Ogre
 
         /** Get a pointer to the delta data for a given point. 
         */
-        const float* getDeltaData(long x, long y) const;
+        const float* getDeltaData(uint32 x, uint32 y) const;
 
         /** Get a Vector3 of the world-space point on the terrain, aligned as per
             options.
         @note This point is relative to Terrain::getPosition
         */
-        void getPoint(long x, long y, Vector3* outpos) const;
+        void getPoint(uint32 x, uint32 y, Vector3* outpos) const;
 
         /** Get a Vector3 of the world-space point on the terrain, aligned as per
         options. Cascades into neighbours if out of bounds.
         @note This point is relative to Terrain::getPosition - neighbours are
             adjusted to be relative to this tile
         */
-        void getPointFromSelfOrNeighbour(long x, long y, Vector3* outpos) const;
+        void getPointFromSelfOrNeighbour(int32 x, int32 y, Vector3* outpos) const;
 
         /** Get a Vector3 of the world-space point on the terrain, supplying the
             height data manually (can be more optimal). 
         @note This point is relative to Terrain::getPosition
         */
-        void getPoint(long x, long y, float height, Vector3* outpos) const;
+        void getPoint(uint32 x, uint32 y, float height, Vector3* outpos) const;
         /** Get a transform which converts Vector4(xindex, yindex, height, 1) into 
             an object-space position including scalings and alignment.
         */
         Affine3 getPointTransform() const;
 
-        /// @deprecated
-        OGRE_DEPRECATED void getPointTransform(Matrix4* outXform) const { *outXform = getPointTransform(); }
         /** Translate a vector from world space to local terrain space based on the alignment options.
         @param inVec The vector in basis space, where x/y represents the 
         terrain plane and z represents the up vector
@@ -1608,7 +1606,8 @@ namespace Ogre
         // background thread.
         OGRE_RW_MUTEX(mNeighbourMutex);
 
-    protected:
+        void waitForDerivedProcesses();
+    private:
         /** Gets the data size at a given LOD level.
         */
         uint getGeoDataSizeAtLod(uint16 lodLevel) const;
@@ -1634,19 +1633,19 @@ namespace Ogre
         void createOrDestroyGPUColourMap();
         void createOrDestroyGPULightmap();
         void createOrDestroyGPUCompositeMap();
-        void waitForDerivedProcesses();
+
         void convertSpace(Space inSpace, const Vector3& inVec, Space outSpace, Vector3& outVec, bool translation) const;
         Vector3 convertWorldToTerrainAxes(const Vector3& inVec) const;
         Vector3 convertTerrainToWorldAxes(const Vector3& inVec) const;
         /** Get a Vector3 of the world-space point on the terrain, aligned Y-up always.
         @note This point is relative to Terrain::getPosition
         */
-        void getPointAlign(long x, long y, Alignment align, Vector3* outpos) const;
+        void getPointAlign(uint32 x, uint32 y, Alignment align, Vector3* outpos) const;
         /** Get a Vector3 of the world-space point on the terrain, supplying the
         height data manually (can be more optimal). 
         @note This point is relative to Terrain::getPosition
         */
-        void getPointAlign(long x, long y, float height, Alignment align, Vector3* outpos) const;
+        void getPointAlign(uint32 x, uint32 y, float height, Alignment align, Vector3* outpos) const;
         void calculateCurrentLod(Viewport* vp);
 
         /// Delete blend maps for all layers >= lowIndex
@@ -1667,13 +1666,13 @@ namespace Ogre
 
         void updateDerivedDataImpl(const Rect& rect, const Rect& lightmapExtraRect, bool synchronous, uint8 typeMask);
 
-        void getEdgeRect(NeighbourIndex index, long range, Rect* outRect) const;
+        void getEdgeRect(NeighbourIndex index, int32 range, Rect* outRect) const;
         // get the equivalent of the passed in edge rectangle in neighbour
         void getNeighbourEdgeRect(NeighbourIndex index, const Rect& inRect, Rect* outRect) const;
         // get the equivalent of the passed in edge point in neighbour
-        void getNeighbourPoint(NeighbourIndex index, long x, long y, long *outx, long *outy) const;
+        void getNeighbourPoint(NeighbourIndex index, uint32 x, uint32 y, uint32 *outx, uint32 *outy) const;
         // overflow a point into a neighbour index and point
-        void getNeighbourPointOverflow(long x, long y, NeighbourIndex *outindex, long *outx, long *outy) const;
+        void getNeighbourPointOverflow(int32 x, int32 y, NeighbourIndex *outindex, uint32 *outx, uint32 *outy) const;
 
         /// Removes this terrain instance from neighbouring terrain's list of neighbours.
         void removeFromNeighbours();
@@ -1732,8 +1731,6 @@ namespace Ogre
             uint8 typeMask;
             Rect dirtyRect;
             Rect lightmapExtraDirtyRect;
-            OGRE_DEPRECATED _OgreTerrainExport friend std::ostream& operator<<(std::ostream& o, const DerivedDataRequest& r)
-            { return o; }       
         };
 
         /// A data holder for communicating with the background derived data update
@@ -1751,8 +1748,6 @@ namespace Ogre
             /// All CPU-side data, independent of textures; to be blitted in main thread
             PixelBox* normalMapBox;
             PixelBox* lightMapBox;
-            OGRE_DEPRECATED _OgreTerrainExport friend std::ostream& operator<<(std::ostream& o, const DerivedDataResponse& r)
-            { return o; }       
         };
 
         enum GenerateMaterialStage{
@@ -1766,8 +1761,6 @@ namespace Ogre
             unsigned long startTime;
             GenerateMaterialStage stage;
             bool synchronous;
-            OGRE_DEPRECATED _OgreTerrainExport friend std::ostream& operator<<(std::ostream& o, const GenerateMaterialRequest& r)
-            { return o; }       
         };
 
         String mMaterialName;

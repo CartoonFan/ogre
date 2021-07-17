@@ -242,17 +242,7 @@ namespace Ogre {
 
         void _setPolygonMode(PolygonMode level);
 
-        void setStencilCheckEnabled(bool enabled);
-        /** See
-          RenderSystem.
-         */
-        void setStencilBufferParams(CompareFunction func = CMPF_ALWAYS_PASS, 
-            uint32 refValue = 0, uint32 compareMask = 0xFFFFFFFF, uint32 writeMask = 0xFFFFFFFF,
-            StencilOperation stencilFailOp = SOP_KEEP, 
-            StencilOperation depthFailOp = SOP_KEEP,
-            StencilOperation passOp = SOP_KEEP, 
-            bool twoSidedOperation = false,
-            bool readBackAsTexture = false);
+        void setStencilState(const StencilState& state) override;
 
         void _setTextureUnitFiltering(size_t unit, FilterType ftype, FilterOptions filter);
 
@@ -268,7 +258,7 @@ namespace Ogre {
         void setScissorTest(bool enabled, const Rect& rect = Rect()) ;
         void clearFrameBuffer(unsigned int buffers, 
                               const ColourValue& colour = ColourValue::Black, 
-                              Real depth = 1.0f, unsigned short stencil = 0);
+                              float depth = 1.0f, unsigned short stencil = 0);
         HardwareOcclusionQuery* createHardwareOcclusionQuery(void);
 
         // ----------------------------------

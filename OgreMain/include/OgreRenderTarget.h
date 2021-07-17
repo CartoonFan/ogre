@@ -62,17 +62,6 @@ namespace Ogre {
     class _OgreExport RenderTarget : public RenderSysAlloc
     {
     public:
-        enum StatFlags
-        {
-            SF_NONE           = 0,
-            SF_FPS            = 1,
-            SF_AVG_FPS        = 2,
-            SF_BEST_FPS       = 4,
-            SF_WORST_FPS      = 8,
-            SF_TRIANGLE_COUNT = 16,
-            SF_ALL            = 0xFFFF
-        };
-
         struct FrameStats
         {
             /// frames per second (FPS) based on the frames rendered in the last second
@@ -106,11 +95,10 @@ namespace Ogre {
         virtual const String& getName(void) const;
 
         /// Retrieve information about the render target.
-        virtual void getMetrics(unsigned int& width, unsigned int& height, unsigned int& colourDepth);
+        void getMetrics(unsigned int& width, unsigned int& height);
 
         virtual uint32 getWidth(void) const;
         virtual uint32 getHeight(void) const;
-        virtual uint32 getColourDepth(void) const;
 
         /**
          * Sets the pool ID this RenderTarget should query from. Default value is POOL_DEFAULT.
@@ -386,15 +374,6 @@ namespace Ogre {
         */
         virtual void setFSAA(uint fsaa, const String& fsaaHint) { }
 
-        /// @deprecated do not use
-        class Impl
-        {
-        protected:
-            ~Impl() { }
-        };
-        /// @deprecated do not use
-        OGRE_DEPRECATED virtual Impl *_getImpl();
-
         /** Method for manual management of rendering : fires 'preRenderTargetUpdate'
             and initialises statistics etc.
         @remarks 
@@ -467,7 +446,6 @@ namespace Ogre {
 
         uint32 mWidth;
         uint32 mHeight;
-        uint32 mColourDepth;
         uint16       mDepthBufferPoolId;
         DepthBuffer *mDepthBuffer;
 

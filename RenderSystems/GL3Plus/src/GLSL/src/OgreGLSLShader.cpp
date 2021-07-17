@@ -447,7 +447,7 @@ namespace Ogre {
                 OGRE_CHECK_GL_ERROR(glObjectLabel(GL_PROGRAM, mGLProgramHandle, 0, mName.c_str()));
 
             // do not attempt to link attach only shaders
-            if(mSyntaxCode == "spirv" || (mSource.find("void main") != String::npos))
+            if(mSyntaxCode == "gl_spirv" || (mSource.find("void main") != String::npos))
                 compiled = linkSeparable();
         }
 
@@ -476,20 +476,20 @@ namespace Ogre {
         mLinked = 0;
     }
 
-    void GLSLShader::extractUniforms() const
+    void GLSLShader::extractUniforms(int block) const
     {
         GLint numUniforms = 0;
         OGRE_CHECK_GL_ERROR(glGetProgramInterfaceiv(mGLProgramHandle, GL_UNIFORM, GL_ACTIVE_RESOURCES, &numUniforms));
 
-        const GLenum properties[5] = {GL_BLOCK_INDEX, GL_TYPE, GL_NAME_LENGTH, GL_LOCATION, GL_ARRAY_SIZE};
+        const GLenum properties[6] = {GL_BLOCK_INDEX, GL_TYPE, GL_NAME_LENGTH, GL_LOCATION, GL_ARRAY_SIZE, GL_OFFSET};
         for (int unif = 0; unif < numUniforms; ++unif)
         {
-            GLint values[5];
+            GLint values[6];
             OGRE_CHECK_GL_ERROR(
-                glGetProgramResourceiv(mGLProgramHandle, GL_UNIFORM, unif, 5, properties, 5, NULL, values));
+                glGetProgramResourceiv(mGLProgramHandle, GL_UNIFORM, unif, 6, properties, 6, NULL, values));
 
-            // Skip any uniforms that are in a block and atomic_uints
-            if (values[0] != -1 || values[3] == -1)
+            // Skip any uniforms that are in a different block or atomic_uints
+            if (values[0] != block || (block == -1 && values[3] == -1))
                 continue;
 
             GpuConstantDefinition def;
@@ -517,37 +517,35 @@ namespace Ogre {
             // also allow index based referencing
             GpuLogicalIndexUse use;
 
-            if (def.isFloat())
+            if (def.isFloat() || def.isDouble() || def.isInt() || def.isUnsignedInt() || def.isBool())
             {
-                def.physicalIndex = mConstantDefs->floatBufferSize;
-                mConstantDefs->floatBufferSize += def.arraySize * def.elementSize;
+                def.physicalIndex = block > -1 ? values[5] : mConstantDefs->bufferSize * 4;
+                mConstantDefs->bufferSize += def.arraySize * def.elementSize;
 
-                use.physicalIndex = def.physicalIndex;
-                use.currentSize = def.arraySize * def.elementSize;
-                mFloatLogicalToPhysical->map.emplace(def.logicalIndex, use);
+                if (values[3] != -1)
+                {
+                    use.physicalIndex = def.physicalIndex;
+                    use.currentSize = def.arraySize * def.elementSize;
+                    mLogicalToPhysical->map.emplace(def.logicalIndex, use);
+
+                    // warn if there is a default value, that we would overwrite
+                    std::vector<int> val(use.currentSize);
+                    OGRE_CHECK_GL_ERROR(glGetUniformiv(mGLProgramHandle, def.logicalIndex, val.data()));
+                    if (val != std::vector<int>(use.currentSize))
+                        LogManager::getSingleton().logWarning("Default value of uniform '" + name +
+                                                              "' is ignored in " + getResourceLogName());
+                }
             }
-            else if (def.isDouble())
+            else if(def.isSampler())
             {
-                def.physicalIndex = mConstantDefs->doubleBufferSize;
-                mConstantDefs->doubleBufferSize += def.arraySize * def.elementSize;
-
-                use.physicalIndex = def.physicalIndex;
-                use.currentSize = def.arraySize * def.elementSize;
-                mDoubleLogicalToPhysical->map.emplace(def.logicalIndex, use);
-            }
-            else if (def.isInt() || def.isSampler() || def.isUnsignedInt() || def.isBool())
-            {
-                def.physicalIndex = mConstantDefs->intBufferSize;
-                mConstantDefs->intBufferSize += def.arraySize * def.elementSize;
-
-                use.physicalIndex = def.physicalIndex;
-                use.currentSize = def.arraySize * def.elementSize;
-                mIntLogicalToPhysical->map.emplace(def.logicalIndex, use);
+                def.physicalIndex = mConstantDefs->registerCount;
+                mConstantDefs->registerCount += def.arraySize * def.elementSize;
+                // no index based referencing
             }
             else
             {
                 LogManager::getSingleton().logError("Could not parse type of GLSL Uniform: '" + name +
-                                                    "' in file " + mName);
+                                                    "' in file " + getResourceLogName());
             }
             mConstantDefs->map.emplace(name, def);
         }
@@ -557,6 +555,8 @@ namespace Ogre {
     {
         GLint numBlocks = 0;
         OGRE_CHECK_GL_ERROR(glGetProgramInterfaceiv(mGLProgramHandle, type, GL_ACTIVE_RESOURCES, &numBlocks));
+
+        auto& hbm = static_cast<GL3PlusHardwareBufferManager&>(HardwareBufferManager::getSingleton());
 
         const GLenum blockProperties[3] = {GL_NUM_ACTIVE_VARIABLES, GL_NAME_LENGTH, GL_BUFFER_DATA_SIZE};
         for(int blockIdx = 0; blockIdx < numBlocks; ++blockIdx)
@@ -571,17 +571,30 @@ namespace Ogre {
                                                          values[1], NULL, &nameData[0]));
             String name(nameData.begin(), nameData.end() - 1);
 
+            if (name == "OgreUniforms") // default buffer
+            {
+                extractUniforms(blockIdx);
+                int binding = int(mType);
+                if (binding > 1)
+                    LogManager::getSingleton().logWarning(
+                        getResourceLogName() +
+                        " - using a UBO in this shader type will alias with shared_params");
+
+                mDefaultBuffer = hbm.createUniformBuffer(values[2]);
+                static_cast<GL3PlusHardwareBuffer*>(mDefaultBuffer.get())->setGLBufferBinding(binding);
+                OGRE_CHECK_GL_ERROR(glUniformBlockBinding(mGLProgramHandle, blockIdx, binding));
+                continue;
+            }
+
             auto blockSharedParams = GpuProgramManager::getSingleton().getSharedParameters(name);
 
             HardwareBufferPtr hwGlBuffer = blockSharedParams->_getHardwareBuffer();
             if(!hwGlBuffer)
             {
-                auto& hbm = static_cast<GL3PlusHardwareBufferManager&>(HardwareBufferManager::getSingleton());
-
                 size_t binding = 0;
                 if(type == GL_UNIFORM_BLOCK)
                 {
-                    binding = hbm.getUniformBufferCount();
+                    binding = hbm.getUniformBufferCount() + 2; // slots 0 & 1 are reserved for defaultbuffer
                     hwGlBuffer = hbm.createUniformBuffer(values[2]);
                 }
                 else
@@ -590,11 +603,11 @@ namespace Ogre {
                     hwGlBuffer = hbm.createShaderStorageBuffer(values[2]);
                 }
 
-                hwGlBuffer->_getImpl<GL3PlusHardwareBuffer>()->setGLBufferBinding(int(binding));
+                static_cast<GL3PlusHardwareBuffer*>(hwGlBuffer.get())->setGLBufferBinding(int(binding));
                 blockSharedParams->_setHardwareBuffer(hwGlBuffer);
             }
 
-            int binding = hwGlBuffer->_getImpl<GL3PlusHardwareBuffer>()->getGLBufferBinding();
+            int binding = static_cast<GL3PlusHardwareBuffer*>(hwGlBuffer.get())->getGLBufferBinding();
 
             if(type == GL_UNIFORM_BLOCK)
             {
@@ -607,7 +620,7 @@ namespace Ogre {
         }
     }
 
-    void GLSLShader::buildConstantDefinitions() const
+    void GLSLShader::buildConstantDefinitions()
     {
         createParameterMappingStructures(true);
         auto caps = Root::getSingleton().getRenderSystem()->getCapabilities();
@@ -620,13 +633,12 @@ namespace Ogre {
             return;
         }
 
-        mFloatLogicalToPhysical.reset();
-        mIntLogicalToPhysical.reset();
+        mLogicalToPhysical.reset();
 
         // We need an accurate list of all the uniforms in the shader, but we
         // can't get at them until we link all the shaders into a program object.
         // Therefore instead parse the source code manually and extract the uniforms.
-        GLSLProgramManager::getSingleton().extractUniformsFromGLSL(mSource, *mConstantDefs, mName);
+        GLSLProgramManager::getSingleton().extractUniformsFromGLSL(mSource, *mConstantDefs, getResourceLogName());
 
 
         // Also parse any attached sources.
@@ -667,11 +679,23 @@ namespace Ogre {
         }
     }
 
+    static const String language = "glsl";
 
     const String& GLSLShader::getLanguage(void) const
     {
-        static const String language = "glsl";
-
         return language;
+    }
+
+    const String& GLSLShaderFactory::getLanguage(void) const
+    {
+        return language;
+    }
+
+    GpuProgram* GLSLShaderFactory::create(
+        ResourceManager* creator,
+        const String& name, ResourceHandle handle,
+        const String& group, bool isManual, ManualResourceLoader* loader)
+    {
+        return OGRE_NEW GLSLShader(creator, name, handle, group, isManual, loader);
     }
 }

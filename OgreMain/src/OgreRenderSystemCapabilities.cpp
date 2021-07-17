@@ -58,7 +58,6 @@ namespace Ogre {
         : mVendor(GPU_UNKNOWN)
         , mNumTextureUnits(0)
         , mStencilBufferBitDepth(0)
-        , mNumVertexBlendMatrices(0)
         , mNumMultiRenderTargets(1)
         , mNonPOW2TexturesLimited(false)
         , mMaxSupportedAnisotropy(0)
@@ -208,13 +207,11 @@ namespace Ogre {
                              StringConverter::toString(hasCapability(RSC_TEXTURE_COMPRESSION_BC6H_BC7), true));
             pLog->logMessage("   - ASTC: " +
                              StringConverter::toString(hasCapability(RSC_TEXTURE_COMPRESSION_ASTC), true));
-            pLog->logMessage("   - Mipmaps for compressed formats: " +
+            pLog->logMessage("   - Automatic mipmap generation: " +
                              StringConverter::toString(hasCapability(RSC_AUTOMIPMAP_COMPRESSED), true));
         }
 
         pLog->logMessage(" * Vertex Buffers");
-        pLog->logMessage("   - VET_UBYTE4 element type: " +
-                         StringConverter::toString(hasCapability(RSC_VERTEX_FORMAT_UBYTE4), true));
         pLog->logMessage("   - Render to Vertex Buffer: " +
                          StringConverter::toString(hasCapability(RSC_HWRENDER_TO_VERTEX_BUFFER), true));
         pLog->logMessage("   - Instance Data: " +
@@ -237,9 +234,6 @@ namespace Ogre {
         pLog->logMessage(
             " * User clip planes: "
             + StringConverter::toString(hasCapability(RSC_USER_CLIP_PLANES), true));
-        pLog->logMessage(
-            " * Infinite far plane projection: "
-            + StringConverter::toString(hasCapability(RSC_INFINITE_FAR_PLANE), true));
         pLog->logMessage(
             " * Depth clamping: "
             + StringConverter::toString(hasCapability(RSC_DEPTH_CLAMP), true));

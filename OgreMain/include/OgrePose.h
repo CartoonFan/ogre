@@ -31,10 +31,12 @@ THE SOFTWARE.
 #include "OgrePrerequisites.h"
 #include "OgreCommon.h"
 #include "OgreHardwareVertexBuffer.h"
-#include "OgreIteratorWrapper.h"
 #include "OgreHeaderPrefix.h"
 
 namespace Ogre {
+
+    template <typename T> class MapIterator;
+    template <typename T> class ConstMapIterator;
 
     /** \addtogroup Core
     *  @{
@@ -131,7 +133,7 @@ namespace Ogre {
             way (only really useful for cloning holders of this class).
         */
         Pose* clone(void) const OGRE_NODISCARD;
-    protected:
+    private:
         /// Target geometry index
         ushort mTarget;
         /// Optional name

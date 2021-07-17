@@ -61,8 +61,8 @@ namespace Ogre {
         SamplerPtr ret = _createSamplerImpl();
         if(!name.empty())
         {
-            OgreAssert(mNamedSamplers.find(name) == mNamedSamplers.end(),
-                       ("Sampler '" + name + "' already exists").c_str());
+            if (mNamedSamplers.find(name) != mNamedSamplers.end())
+                OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Sampler '" + name + "' already exists");
             mNamedSamplers[name] = ret;
         }
         return ret;
@@ -78,7 +78,7 @@ namespace Ogre {
         return it->second;
     }
     //-----------------------------------------------------------------------
-    TexturePtr TextureManager::getByName(const String& name, const String& groupName)
+    TexturePtr TextureManager::getByName(const String& name, const String& groupName) const
     {
         return static_pointer_cast<Texture>(getResourceByName(name, groupName));
     }
@@ -344,9 +344,9 @@ namespace Ogre {
 
         // Yellow/black stripes
         const ColourValue black(0, 0, 0), yellow(1, 1, 0);
-        for (size_t y = 0; y < pixels.getHeight(); ++y)
+        for (uint32 y = 0; y < pixels.getHeight(); ++y)
         {
-            for (size_t x = 0; x < pixels.getWidth(); ++x)
+            for (uint32 x = 0; x < pixels.getWidth(); ++x)
             {
                 pixels.setColourAt((((x + y) % 8) < 4) ? black : yellow, x, y, 0);
             }

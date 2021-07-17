@@ -87,10 +87,9 @@ namespace Ogre
         @param size The size of the node in vertices at the highest LOD
         @param lod The base LOD level
         @param depth The depth that this node is at in the tree (or convenience)
-        @param quadrant The index of the quadrant (0, 1, 2, 3)
         */
         TerrainQuadTreeNode(Terrain* terrain, TerrainQuadTreeNode* parent, 
-            uint16 xoff, uint16 yoff, uint16 size, uint16 lod, uint16 depth, uint16 quadrant);
+            uint16 xoff, uint16 yoff, uint16 size, uint16 lod, uint16 depth);
         virtual ~TerrainQuadTreeNode();
 
         /// Get the horizontal offset into the main terrain data of this node
@@ -225,8 +224,6 @@ namespace Ogre
         /// Get the AABB (local coords) of this node
         const AxisAlignedBox& getBoundingBox(void) const { return mAABB; }
 
-        /// @deprecated use getBoundingBox
-        OGRE_DEPRECATED const AxisAlignedBox& getAABB() const;
         /// Get the bounding radius of this node
         Real getBoundingRadius() const;
         /// Get the local centre of this node, relative to parent terrain centre
@@ -261,7 +258,7 @@ namespace Ogre
         /// Buffer binding used for holding delta values
         static unsigned short DELTA_BUFFER;
 
-    protected:
+    private:
         Terrain* mTerrain;
         TerrainQuadTreeNode* mParent;
         TerrainQuadTreeNode* mChildren[4];
@@ -273,7 +270,6 @@ namespace Ogre
         uint16 mSize;
         uint16 mBaseLod;
         uint16 mDepth;
-        uint16 mQuadrant;
         Vector3 mLocalCentre; /// Relative to terrain centre
         AxisAlignedBox mAABB; /// Relative to mLocalCentre
         Real mBoundingRadius; /// Relative to mLocalCentre

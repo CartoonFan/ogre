@@ -45,7 +45,7 @@ namespace Ogre {
      *  @{
      */
     /// Categorisation of passes for the purpose of additive lighting
-    enum IlluminationStage
+    enum IlluminationStage : uint8
     {
         /// Part of the rendering which occurs without any kind of direct lighting
         IS_AMBIENT,
@@ -131,11 +131,10 @@ namespace Ogre {
         };
 
         typedef std::vector<TextureUnitState*> TextureUnitStates;
-    protected:
+    private:
         Technique* mParent;
         String mName; /// Optional name for the pass
         uint32 mHash; /// Pass hash
-        ushort mIndex; /// Pass index
         //-------------------------------------------------------------------------
         // Colour properties, only applicable in fixed-function passes
         ColourValue mAmbient;
@@ -179,11 +178,11 @@ namespace Ogre {
 
         uchar mAlphaRejectVal;
 
-        CompareFunction mDepthFunc;
         float mDepthBiasConstant;
         float mDepthBiasSlopeScale;
         float mDepthBiasPerIteration;
 
+        CompareFunction mDepthFunc;
         // Alpha reject settings
         CompareFunction mAlphaRejectFunc;
 
@@ -202,57 +201,56 @@ namespace Ogre {
         /// Iterate per how many lights?
         unsigned short mLightsPerIteration;
 
-        Light::LightTypes mOnlyLightType;
+        ushort mIndex; /// Pass index
+
         /// With a specific light mask?
         uint32 mLightMask;
 
-        /// Shading options
-        ShadeOptions mShadeOptions;
-        /// Polygon mode
-        PolygonMode mPolygonMode;
-
         //-------------------------------------------------------------------------
         // Fog
-        FogMode mFogMode;
         ColourValue mFogColour;
         Real mFogStart;
         Real mFogEnd;
         Real mFogDensity;
         //-------------------------------------------------------------------------
-
+        /// line width
+        float mLineWidth;
         /// Storage of texture unit states
         TextureUnitStates mTextureUnitStates;
 
+        // TU Content type lookups
+        typedef std::vector<unsigned short> ContentTypeLookup;
+        mutable ContentTypeLookup mShadowContentTypeLookup;
+
         /// Vertex program details
         std::unique_ptr<GpuProgramUsage> mProgramUsage[GPT_COUNT];
-        std::unique_ptr<GpuProgramUsage> mShadowCasterVertexProgramUsage;
-        std::unique_ptr<GpuProgramUsage> mShadowCasterFragmentProgramUsage;
-        std::unique_ptr<GpuProgramUsage> mShadowReceiverVertexProgramUsage;
-        std::unique_ptr<GpuProgramUsage> mShadowReceiverFragmentProgramUsage;
         /// Number of pass iterations to perform
         size_t mPassIterationCount;
-        /// line width
-        float mLineWidth;
         /// Point size, applies when not using per-vertex point size
         Real mPointMinSize;
         Real mPointMaxSize;
         /// Size, Constant, linear, quadratic coeffs
         Vector4f mPointAttenution;
-        // TU Content type lookups
-        typedef std::vector<unsigned short> ContentTypeLookup;
-        mutable ContentTypeLookup mShadowContentTypeLookup;
 
-        /// Illumination stage?
-        IlluminationStage mIlluminationStage;
         /// User objects binding.
         UserObjectBindings      mUserObjectBindings;
+
+        /// Shading options
+        ShadeOptions mShadeOptions;
+        /// Polygon mode
+        PolygonMode mPolygonMode;
+        /// Illumination stage?
+        IlluminationStage mIlluminationStage;
+
+        Light::LightTypes mOnlyLightType;
+        FogMode mFogMode;
 
         /// Used to get scene blending flags from a blending type
         void _getBlendFlags(SceneBlendType type, SceneBlendFactor& source, SceneBlendFactor& dest);
 
     public:
         typedef std::set<Pass*> PassSet;
-    protected:
+    private:
         /// List of Passes whose hashes need recalculating
         static PassSet msDirtyHashList;
         /// The place where passes go to die
@@ -560,9 +558,8 @@ namespace Ogre {
             Throws an exception if the TextureUnitState is attached to another Pass.*/
         void addTextureUnitState(TextureUnitState* state);
         /** Retrieves a const pointer to a texture unit state.
-         * @deprecated use getTextureUnitStates()
          */
-        TextureUnitState* getTextureUnitState(unsigned short index) const;
+        TextureUnitState* getTextureUnitState(size_t index) const { return mTextureUnitStates.at(index); }
         /** Retrieves the Texture Unit State matching name.
             Returns 0 if name match is not found.
         */
@@ -599,16 +596,8 @@ namespace Ogre {
          */
         void removeAllTextureUnitStates(void);
 
-        /** Returns the number of texture unit settings.
-         * @deprecated use getTextureUnitStates()
-         */
-        unsigned short getNumTextureUnitStates(void) const
-        {
-            return static_cast<unsigned short>(mTextureUnitStates.size());
-        }
-
-        /// @deprecated use getTextureUnitState("alias")->setTextureName("texture.png") instead
-        OGRE_DEPRECATED bool applyTextureAliases(const AliasTextureNamePairList& aliasList, const bool apply = true) const;
+        /** Returns the number of texture unit settings */
+        size_t getNumTextureUnitStates(void) const { return mTextureUnitStates.size(); }
 
         /** Gets the 'nth' texture which references the given content type.
             @remarks
@@ -695,9 +684,6 @@ namespace Ogre {
         */
         void setSeparateSceneBlending( const SceneBlendFactor sourceFactor, const SceneBlendFactor destFactor, const SceneBlendFactor sourceFactorAlpha, const SceneBlendFactor destFactorAlpha );
 
-        /// @deprecated
-        OGRE_DEPRECATED bool hasSeparateSceneBlending() const;
-
         /// Retrieves the complete blend state of this pass
         const ColourBlendState& getBlendState() const { return mBlendState; }
 
@@ -733,9 +719,6 @@ namespace Ogre {
             @param alphaOp The blending operation mode to use for alpha channels in this pass
         */
         void setSeparateSceneBlendingOperation(SceneBlendOperation op, SceneBlendOperation alphaOp);
-
-        /// @deprecated
-        OGRE_DEPRECATED bool hasSeparateSceneBlendingOperations() const;
 
         /** Returns the current blending operation */
         SceneBlendOperation getSceneBlendingOperation() const;
@@ -1217,14 +1200,6 @@ namespace Ogre {
         bool hasTessellationDomainProgram(void) const { return hasGpuProgram(GPT_DOMAIN_PROGRAM); }
         /// Returns true if this pass uses a programmable compute pipeline
         bool hasComputeProgram(void) const { return hasGpuProgram(GPT_COMPUTE_PROGRAM); }
-        /// Returns true if this pass uses a shadow caster vertex program
-        bool hasShadowCasterVertexProgram(void) const { return mShadowCasterVertexProgramUsage != NULL; }
-        /// Returns true if this pass uses a shadow caster fragment program
-        bool hasShadowCasterFragmentProgram(void) const { return mShadowCasterFragmentProgramUsage != NULL; }
-        /// Returns true if this pass uses a shadow receiver vertex program
-        bool hasShadowReceiverVertexProgram(void) const { return mShadowReceiverVertexProgramUsage != NULL; }
-        /// Returns true if this pass uses a shadow receiver fragment program
-        bool hasShadowReceiverFragmentProgram(void) const { return mShadowReceiverFragmentProgramUsage != NULL; }
         /// Gets the Gpu program used by this pass, only available after _load()
         const GpuProgramPtr& getGpuProgram(GpuProgramType programType) const;
         /// @overload
@@ -1241,49 +1216,6 @@ namespace Ogre {
         const GpuProgramPtr& getComputeProgram(void) const;
 
         bool hasGpuProgram(GpuProgramType programType) const;
-
-        /// @deprecated use Ogre::Technique::setShadowCasterMaterial
-        OGRE_DEPRECATED void setShadowCasterVertexProgram(const String& name);
-        /// @deprecated use Ogre::Technique::setShadowCasterMaterial
-        OGRE_DEPRECATED void setShadowCasterVertexProgramParameters(GpuProgramParametersSharedPtr params);
-        /// @deprecated use Ogre::Technique::getShadowCasterMaterial
-        const String& getShadowCasterVertexProgramName(void) const;
-        /// @deprecated use Ogre::Technique::getShadowCasterMaterial
-        GpuProgramParametersSharedPtr getShadowCasterVertexProgramParameters(void) const;
-        /// @deprecated use Ogre::Technique::getShadowCasterMaterial
-        const GpuProgramPtr& getShadowCasterVertexProgram(void) const;
-        /// @deprecated use Ogre::Technique::setShadowCasterMaterial
-        OGRE_DEPRECATED void setShadowCasterFragmentProgram(const String& name);
-        /// @deprecated use Ogre::Technique::setShadowCasterMaterial
-        OGRE_DEPRECATED void setShadowCasterFragmentProgramParameters(GpuProgramParametersSharedPtr params);
-        /// @deprecated use Ogre::Technique::getShadowCasterMaterial
-        const String& getShadowCasterFragmentProgramName(void) const;
-        /// @deprecated use Ogre::Technique::getShadowCasterMaterial
-        GpuProgramParametersSharedPtr getShadowCasterFragmentProgramParameters(void) const;
-        /// @deprecated use Ogre::Technique::getShadowCasterMaterial
-        const GpuProgramPtr& getShadowCasterFragmentProgram(void) const;
-
-        /// @deprecated use Ogre::Technique::setShadowReceiverMaterial
-        OGRE_DEPRECATED void setShadowReceiverVertexProgram(const String& name);
-        /// @deprecated use Ogre::Technique::setShadowReceiverMaterial
-        OGRE_DEPRECATED void setShadowReceiverVertexProgramParameters(GpuProgramParametersSharedPtr params);
-        /// @deprecated use Ogre::Technique::setShadowReceiverMaterial
-        OGRE_DEPRECATED void setShadowReceiverFragmentProgram(const String& name);
-        /// @deprecated use Ogre::Technique::setShadowReceiverMaterial
-        OGRE_DEPRECATED void setShadowReceiverFragmentProgramParameters(GpuProgramParametersSharedPtr params);
-
-        /// @deprecated use Ogre::Technique::getShadowReceiverMaterial
-        const String& getShadowReceiverVertexProgramName(void) const;
-        /// @deprecated use Ogre::Technique::getShadowReceiverMaterial
-        GpuProgramParametersSharedPtr getShadowReceiverVertexProgramParameters(void) const;
-        /// @deprecated use Ogre::Technique::getShadowReceiverMaterial
-        const GpuProgramPtr& getShadowReceiverVertexProgram(void) const;
-        /// @deprecated use Ogre::Technique::getShadowReceiverMaterial
-        const String& getShadowReceiverFragmentProgramName(void) const;
-        /// @deprecated use Ogre::Technique::getShadowReceiverMaterial
-        GpuProgramParametersSharedPtr getShadowReceiverFragmentProgramParameters(void) const;
-        /// @deprecated use Ogre::Technique::getShadowReceiverMaterial
-        const GpuProgramPtr& getShadowReceiverFragmentProgram(void) const;
 
         /** Sets the details of the program to use.
             @remarks
@@ -1634,7 +1566,7 @@ namespace Ogre {
             @see UserObjectBindings::setUserAny.
         */
         const UserObjectBindings& getUserObjectBindings() const { return mUserObjectBindings; }
-     protected:
+     private:
         std::unique_ptr<GpuProgramUsage>& getProgramUsage(GpuProgramType programType);
         const std::unique_ptr<GpuProgramUsage>& getProgramUsage(GpuProgramType programType) const;
     };

@@ -182,15 +182,6 @@ namespace Ogre {
 
     GLES2TextureBuffer::~GLES2TextureBuffer()
     {
-        if (mUsage & TU_RENDERTARGET)
-        {
-            // Delete all render targets that are not yet deleted via _clearSliceRTT because the rendertarget
-            // was deleted by the user.
-            for (SliceTRT::const_iterator it = mSliceTRT.begin(); it != mSliceTRT.end(); ++it)
-            {
-                Root::getSingleton().getRenderSystem()->destroyRenderTarget((*it)->getName());
-            }
-        }
     }
 
 #if OGRE_PLATFORM == OGRE_PLATFORM_ANDROID || OGRE_PLATFORM == OGRE_PLATFORM_EMSCRIPTEN
@@ -245,8 +236,8 @@ namespace Ogre {
         LogManager::getSingleton().logMessage("GLES2TextureBuffer::upload - ID: " + StringConverter::toString(mTextureID) +
                                               " Target: " + StringConverter::toString(mTarget) +
                                               " Format: " + PixelUtil::getFormatName(data.format) +
-                                              " Origin format: " + StringConverter::toString(GLES2PixelUtil::getGLOriginFormat(data.format), 0, ' ', std::ios::hex) +
-                                              " Data type: " + StringConverter::toString(GLES2PixelUtil::getGLOriginDataType(data.format), 0, ' ', std::ios::hex));
+                                              " Origin format: " + StringUtil::format("%x", GLES2PixelUtil::getGLOriginFormat(data.format)) +
+                                              " Data type: " + StringUtil::format("%x", GLES2PixelUtil::getGLOriginDataType(data.format)));
 #endif
 #endif
 
@@ -513,13 +504,6 @@ namespace Ogre {
 
         // Delete temp texture
         TextureManager::getSingleton().remove(tex);
-    }
-    
-    RenderTexture *GLES2TextureBuffer::getRenderTarget(size_t zoffset)
-    {
-        assert(mUsage & TU_RENDERTARGET);
-        assert(zoffset < mDepth);
-        return mSliceTRT[zoffset];
     }
     
     //********* GLES2RenderBuffer

@@ -78,10 +78,10 @@ namespace Ogre
             Root::getSingleton().destroySceneManager(mCompositeMapSM);
             mCompositeMapSM = 0;
             mCompositeMapCam = 0;
-            mCompositeMapPlane = 0;
             mCompositeMapLight = 0;
             mLightNode = 0;
         }
+        delete mCompositeMapPlane;
     }
     //---------------------------------------------------------------------
     void TerrainMaterialGenerator::_renderCompositeMap(size_t size, 
@@ -175,7 +175,7 @@ namespace Ogre
     void TerrainMaterialGenerator::Profile::updateCompositeMap(const Terrain* terrain, const Rect& rect)
     {
         // convert point-space rect into image space
-        long compSize = terrain->getCompositeMap()->getWidth();
+        int32 compSize = terrain->getCompositeMap()->getWidth();
         Rect imgRect;
         Vector3 inVec, outVec;
         inVec.x = rect.left;

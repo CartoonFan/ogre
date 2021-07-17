@@ -31,6 +31,8 @@ THE SOFTWARE.
 #include "OgreD3D9Prerequisites.h"
 #include "OgreHighLevelGpuProgram.h"
 
+#include <d3dx9.h>
+
 namespace Ogre {
     /** Specialisation of HighLevelGpuProgram to provide support for D3D9 
         High-Level Shader Language (HLSL).
@@ -114,7 +116,7 @@ namespace Ogre {
         /// Internal unload implementation, must be implemented by subclasses
         void unloadHighLevelImpl(void);
         /// Populate the passed parameters with name->index map, must be overridden
-        void buildConstantDefinitions() const;
+        void buildConstantDefinitions() override;
 
         // Recursive utility method for buildParamNameMap
         void processParamElement(LPD3DXCONSTANTTABLE pConstTable, D3DXHANDLE parent, String prefix, unsigned int index);

@@ -32,7 +32,7 @@ THE SOFTWARE.
 namespace Ogre {
     //-----------------------------------------------------------------------------
     Technique::Technique(Material* parent)
-        : mParent(parent), mIlluminationPassesCompilationPhase(IPS_NOT_COMPILED), mLodIndex(0), mSchemeIndex(0), mIsSupported(false)
+        : mParent(parent), mIlluminationPassesCompilationPhase(IPS_NOT_COMPILED), mIsSupported(false), mLodIndex(0), mSchemeIndex(0)
     {
         // See above, defaults to unsupported until examined
     }
@@ -100,13 +100,7 @@ namespace Ogre {
             Pass* currPass = *i;
             // Adjust pass index
             currPass->_notifyIndex(passNum);
-            // Check for advanced blending operation support
-            if ((currPass->getSceneBlendingOperation() != SBO_ADD || currPass->getSceneBlendingOperationAlpha() != SBO_ADD) &&
-                !caps->hasCapability(RSC_ADVANCED_BLEND_OPERATIONS))
-            {
-                compileErrors << "Pass " << passNum << ": Advanced blend operations are not supported." << std::endl;
-                return false;
-            }
+
             // Check texture unit requirements
             size_t numTexUnitsRequested = currPass->getNumTextureUnitStates();
             // Don't trust getNumTextureUnits for programmable
@@ -299,12 +293,6 @@ namespace Ogre {
         return newPass;
     }
     //-----------------------------------------------------------------------------
-    Pass* Technique::getPass(unsigned short index) const
-    {
-        assert(index < mPasses.size() && "Index out of bounds");
-        return mPasses[index];
-    }
-    //-----------------------------------------------------------------------------
     Pass* Technique::getPass(const String& name) const
     {
         Passes::const_iterator i    = mPasses.begin();
@@ -323,11 +311,6 @@ namespace Ogre {
         }
 
         return foundPass;
-    }
-    //-----------------------------------------------------------------------------
-    unsigned short Technique::getNumPasses(void) const
-    {
-        return static_cast<unsigned short>(mPasses.size());
     }
     //-----------------------------------------------------------------------------
     void Technique::removePass(unsigned short index)
@@ -1190,25 +1173,6 @@ namespace Ogre {
     const String& Technique::getResourceGroup(void) const
     {
         return mParent->getGroup();
-    }
-
-    //-----------------------------------------------------------------------
-    bool Technique::applyTextureAliases(const AliasTextureNamePairList& aliasList, const bool apply) const
-    {
-        // iterate through passes and apply texture alias
-        Passes::const_iterator i, iend;
-        iend = mPasses.end();
-        bool testResult = false;
-
-        for(i = mPasses.begin(); i != iend; ++i)
-        {
-            OGRE_IGNORE_DEPRECATED_BEGIN
-            if ((*i)->applyTextureAliases(aliasList, apply))
-                testResult = true;
-            OGRE_IGNORE_DEPRECATED_END
-        }
-
-        return testResult;
     }
     //-----------------------------------------------------------------------
     Ogre::MaterialPtr  Technique::getShadowCasterMaterial() const 

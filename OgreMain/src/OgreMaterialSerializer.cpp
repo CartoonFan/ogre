@@ -185,10 +185,12 @@ namespace Ogre
             }
 
             // Iterate over techniques
-            Material::Techniques::const_iterator it;
-            for(it = pMat->getTechniques().begin(); it != pMat->getTechniques().end(); ++it)
+            for(auto t : pMat->getTechniques())
             {
-                writeTechnique(*it);
+                // skip RTSS generated techniques
+                if(!mDefaults && t->getSchemeName() == "ShaderGeneratorDefaultScheme")
+                    continue;
+                writeTechnique(t);
                 mBuffer += "\n";
             }
 
@@ -771,21 +773,6 @@ namespace Ogre
             if (pPass->hasGeometryProgram())
             {
                 writeGeometryProgramRef(pPass);
-            }
-
-            if (pPass->hasShadowCasterVertexProgram())
-            {
-                writeShadowCasterVertexProgramRef(pPass);
-            }
-
-            if (pPass->hasShadowReceiverVertexProgram())
-            {
-                writeShadowReceiverVertexProgramRef(pPass);
-            }
-
-            if (pPass->hasShadowReceiverFragmentProgram())
-            {
-                writeShadowReceiverFragmentProgramRef(pPass);
             }
 
             // Nested texture layers
@@ -1456,30 +1443,6 @@ namespace Ogre
             pPass->getTessellationDomainProgram(), pPass->getTessellationDomainProgramParameters());
     }
     //-----------------------------------------------------------------------
-    void MaterialSerializer::writeShadowCasterVertexProgramRef(const Pass* pPass)
-    {
-        writeGpuProgramRef("shadow_caster_vertex_program_ref",
-            pPass->getShadowCasterVertexProgram(), pPass->getShadowCasterVertexProgramParameters());
-    }
-    //-----------------------------------------------------------------------
-    void MaterialSerializer::writeShadowCasterFragmentProgramRef(const Pass* pPass)
-    {
-        writeGpuProgramRef("shadow_caster_fragment_program_ref",
-            pPass->getShadowCasterFragmentProgram(), pPass->getShadowCasterFragmentProgramParameters());
-    }
-    //-----------------------------------------------------------------------
-    void MaterialSerializer::writeShadowReceiverVertexProgramRef(const Pass* pPass)
-    {
-        writeGpuProgramRef("shadow_receiver_vertex_program_ref",
-            pPass->getShadowReceiverVertexProgram(), pPass->getShadowReceiverVertexProgramParameters());
-    }
-    //-----------------------------------------------------------------------
-    void MaterialSerializer::writeShadowReceiverFragmentProgramRef(const Pass* pPass)
-    {
-        writeGpuProgramRef("shadow_receiver_fragment_program_ref",
-            pPass->getShadowReceiverFragmentProgram(), pPass->getShadowReceiverFragmentProgramParameters());
-    }
-    //-----------------------------------------------------------------------
     void MaterialSerializer::writeGeometryProgramRef(const Pass* pPass)
     {
         writeGpuProgramRef("geometry_program_ref",
@@ -1586,7 +1549,7 @@ namespace Ogre
         // This will represent the values which have been set
 
         // float params
-        GpuLogicalBufferStructPtr floatLogical = params->getFloatLogicalBufferStruct();
+        GpuLogicalBufferStructPtr floatLogical = params->getLogicalBufferStruct();
         if( floatLogical )
         {
             OGRE_LOCK_MUTEX(floatLogical->mutex);
@@ -1611,63 +1574,6 @@ namespace Ogre
                                          logicalUse.physicalIndex, logicalUse.currentSize,
                                          params, defaultParams, level, useMainBuffer);
             }
-        }
-
-        // double params
-        GpuLogicalBufferStructPtr doubleLogical = params->getDoubleLogicalBufferStruct();
-        if( doubleLogical )
-        {
-            OGRE_LOCK_MUTEX(doubleLogical->mutex);
-
-            for(GpuLogicalIndexUseMap::const_iterator i = doubleLogical->map.begin();
-                i != doubleLogical->map.end(); ++i)
-            {
-                size_t logicalIndex = i->first;
-                const GpuLogicalIndexUse& logicalUse = i->second;
-
-                const GpuProgramParameters::AutoConstantEntry* autoEntry =
-                    params->findDoubleAutoConstantEntry(logicalIndex);
-                const GpuProgramParameters::AutoConstantEntry* defaultAutoEntry = 0;
-                if (defaultParams)
-                {
-                    defaultAutoEntry = defaultParams->findDoubleAutoConstantEntry(logicalIndex);
-                }
-
-                writeGpuProgramParameter("param_indexed",
-                                         StringConverter::toString(logicalIndex), autoEntry,
-                                         defaultAutoEntry, false, true, false, false,
-                                         logicalUse.physicalIndex, logicalUse.currentSize,
-                                         params, defaultParams, level, useMainBuffer);
-            }
-        }
-
-        // int params
-        GpuLogicalBufferStructPtr intLogical = params->getIntLogicalBufferStruct();
-        if( intLogical )
-        {
-            OGRE_LOCK_MUTEX(intLogical->mutex);
-
-            for(GpuLogicalIndexUseMap::const_iterator i = intLogical->map.begin();
-                i != intLogical->map.end(); ++i)
-            {
-                size_t logicalIndex = i->first;
-                const GpuLogicalIndexUse& logicalUse = i->second;
-
-                const GpuProgramParameters::AutoConstantEntry* autoEntry = 
-                    params->findIntAutoConstantEntry(logicalIndex);
-                const GpuProgramParameters::AutoConstantEntry* defaultAutoEntry = 0;
-                if (defaultParams)
-                {
-                    defaultAutoEntry = defaultParams->findIntAutoConstantEntry(logicalIndex);
-                }
-
-                writeGpuProgramParameter("param_indexed", 
-                                         StringConverter::toString(logicalIndex), autoEntry, 
-                                         defaultAutoEntry, false, false, true, false,
-                                         logicalUse.physicalIndex, logicalUse.currentSize,
-                                         params, defaultParams, level, useMainBuffer);
-            }
-
         }
     }
     //-----------------------------------------------------------------------
@@ -1890,41 +1796,32 @@ namespace Ogre
                 writeAttribute(1, "source", false);
                 writeValue(quoteWord(program->getSourceFile()), false);
                 // write special parameters based on language
-                const ParameterList& params = program->getParameters();
-                ParameterList::const_iterator currentParam = params.begin();
-                ParameterList::const_iterator endParam = params.end();
-
-                while (currentParam != endParam)
+                for (const auto& name : program->getParameters())
                 {
-                    if (currentParam->name != "type" &&
-                        currentParam->name != "assemble_code" &&
-                        currentParam->name != "micro_code" &&
-                        currentParam->name != "external_micro_code")
+                    if (name != "type" &&
+                        name != "assemble_code" &&
+                        name != "micro_code" &&
+                        name != "external_micro_code")
                     {
-                        String paramstr = program->getParameter(currentParam->name);
-                        if ((currentParam->name == "includes_skeletal_animation")
-                            && (paramstr == "false"))
+                        String paramstr = program->getParameter(name);
+                        if ((name == "includes_skeletal_animation") && (paramstr == "false"))
                             paramstr.clear();
-                        if ((currentParam->name == "includes_morph_animation")
-                            && (paramstr == "false"))
+                        if ((name == "includes_morph_animation") && (paramstr == "false"))
                             paramstr.clear();
-                        if ((currentParam->name == "includes_pose_animation")
-                            && (paramstr == "0"))
+                        if ((name == "includes_pose_animation") && (paramstr == "0"))
                             paramstr.clear();
-                        if ((currentParam->name == "uses_vertex_texture_fetch")
-                            && (paramstr == "false"))
+                        if ((name == "uses_vertex_texture_fetch") && (paramstr == "false"))
                             paramstr.clear();
 
-                        if ((language != "asm") && (currentParam->name == "syntax"))
+                        if ((language != "asm") && (name == "syntax"))
                             paramstr.clear();
 
                         if (!paramstr.empty())
                         {
-                            writeAttribute(1, currentParam->name, false);
+                            writeAttribute(1, name, false);
                             writeValue(paramstr, false);
                         }
                     }
-                    ++currentParam;
                 }
 
                 // write default parameters

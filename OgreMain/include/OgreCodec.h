@@ -54,24 +54,11 @@ namespace Ogre {
     */
     class _OgreExport Codec : public CodecAlloc
     {
-    protected:
+    private:
         typedef std::map< String, Codec* > CodecList; 
         /** A map that contains all the registered codecs.
         */
         static CodecList msMapCodecs;
-
-    public:
-        class _OgrePrivate CodecData : public CodecAlloc
-        {
-        public:
-            virtual ~CodecData() {}
-
-            /// @deprecated do not use
-            OGRE_DEPRECATED virtual String dataType() const { return "CodecData"; }
-        };
-        typedef SharedPtr<CodecData> CodecDataPtr;
-
-        typedef ConstMapIterator<CodecList> CodecIterator;
 
     public:
         virtual ~Codec();
@@ -94,12 +81,6 @@ namespace Ogre {
             msMapCodecs.erase(pCodec->getType());
         }
 
-        /// @deprecated use getExtensions()
-        OGRE_DEPRECATED static CodecIterator getCodecIterator(void)
-        {
-            return CodecIterator(msMapCodecs.begin(), msMapCodecs.end());
-        }
-
         /** Gets the file extension list for the registered codecs. */
         static StringVector getExtensions(void);
 
@@ -119,9 +100,6 @@ namespace Ogre {
         */
         virtual DataStreamPtr encode(const Any& input) const;
 
-        /// @deprecated
-        OGRE_DEPRECATED virtual DataStreamPtr encode(const MemoryDataStreamPtr& input, const CodecDataPtr& pData) const { return encode(Any()); }
-
         /** Codes the data in the input chunk and saves the result in the output
             filename provided. Provided for efficiency since coding to memory is
             progressive therefore memory required is unknown leading to reallocations.
@@ -130,30 +108,15 @@ namespace Ogre {
         */
         virtual void encodeToFile(const Any& input, const String& outFileName) const;
 
-        /// @deprecated
-        OGRE_DEPRECATED virtual void encodeToFile(const MemoryDataStreamPtr& input, const String& outFileName, const CodecDataPtr& pData) const
-        { encodeToFile(Any(), ""); }
-
-        /// Result of a decoding; both a decoded data stream and CodecData metadata
-        typedef std::pair<MemoryDataStreamPtr, CodecDataPtr> DecodeResult;
-        /// @deprecated
-        OGRE_DEPRECATED virtual DecodeResult decode(const DataStreamPtr& input) const
-        {
-            return DecodeResult();
-        }
-
         /** Codes the data from the input chunk into the output chunk.
             @param input Stream containing the encoded data
             @param output codec type specific result
         */
-        virtual void decode(const DataStreamPtr& input, const Any& output) const {}
+        virtual void decode(const DataStreamPtr& input, const Any& output) const = 0;
 
         /** Returns the type of the codec as a String
         */
         virtual String getType() const = 0;
-
-        /// @deprecated do not use
-        OGRE_DEPRECATED virtual String getDataType() const { return ""; }
 
         /** Returns whether a magic number header matches this codec.
         @param magicNumberPtr Pointer to a stream of bytes which should identify the file.

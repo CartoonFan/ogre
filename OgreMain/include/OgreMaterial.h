@@ -31,7 +31,6 @@ THE SOFTWARE.
 #include "OgrePrerequisites.h"
 
 #include "OgreResource.h"
-#include "OgreIteratorWrapper.h"
 #include "OgreCommon.h"
 #include "OgreColourValue.h"
 #include "OgreBlendMode.h"
@@ -42,6 +41,8 @@ namespace Ogre {
 
     // Forward declaration
     class LodStrategy;
+    template <typename T> class ConstVectorIterator;
+    template <typename T> class VectorIterator;
 
     /** \addtogroup Core
     *  @{
@@ -96,7 +97,7 @@ namespace Ogre {
         typedef std::vector<Real> LodValueList;
         typedef ConstVectorIterator<LodValueList> LodValueIterator;
         typedef std::vector<Technique*> Techniques;
-    protected:
+    private:
 
 
         /** Internal method which sets the material up from the default settings.
@@ -108,7 +109,7 @@ namespace Ogre {
         /// Supported techniques of any sort
         Techniques mSupportedTechniques;
         typedef std::map<unsigned short, Technique*> LodTechniques;
-        typedef std::map<unsigned short, LodTechniques*> BestTechniquesBySchemeList;
+        typedef std::map<unsigned short, LodTechniques> BestTechniquesBySchemeList;
         /** Map of scheme -> list of LOD techniques. 
             Current scheme is set on MaterialManager,
             and can be set per Viewport for auto activation.
@@ -207,16 +208,14 @@ namespace Ogre {
             return the first one in the technique list which is supported by the hardware.
         */
         Technique* createTechnique(void);
-        /** Gets the indexed technique.
-         * @deprecated use getTechniques()  */
-        Technique* getTechnique(unsigned short index) const;
+        /** Gets the indexed technique. */
+        Technique* getTechnique(size_t index) const { return mTechniques.at(index); }
         /** searches for the named technique.
             Return 0 if technique with name is not found
         */
         Technique* getTechnique(const String& name) const;
-        /** Retrieves the number of techniques.
-         * @deprecated use getTechniques()  */
-        unsigned short getNumTechniques(void) const;
+        /** Retrieves the number of techniques.  */
+        size_t getNumTechniques(void) const { return mTechniques.size(); }
         /** Removes the technique at the given index. */        
         void removeTechnique(unsigned short index);     
         /** Removes all the techniques in this Material. */
@@ -243,12 +242,10 @@ namespace Ogre {
         /// @deprecated use getSupportedTechniques()
         OGRE_DEPRECATED TechniqueIterator getSupportedTechniqueIterator(void);
         
-        /** Gets the indexed supported technique.
-         * @deprecated use getSupportedTechniques() */
-        OGRE_DEPRECATED Technique* getSupportedTechnique(unsigned short index);
-        /** Retrieves the number of supported techniques.
-         * @deprecated use getSupportedTechniques() */
-        OGRE_DEPRECATED unsigned short getNumSupportedTechniques(void) const;
+        /** Gets the indexed supported technique. */
+        Technique* getSupportedTechnique(size_t index) const { return mSupportedTechniques.at(index); }
+        /** Retrieves the number of supported techniques. */
+        size_t getNumSupportedTechniques(void) const { return mSupportedTechniques.size(); }
         /** Gets a string explaining why any techniques are not supported. */
         const String& getUnsupportedTechniquesExplanation() const { return mUnsupportedReasons; }
 
@@ -576,9 +573,6 @@ namespace Ogre {
         @see Pass::setSeparateSceneBlending
         */
         void setSeparateSceneBlending( const SceneBlendFactor sourceFactor, const SceneBlendFactor destFactor, const SceneBlendFactor sourceFactorAlpha, const SceneBlendFactor destFactorAlpha);
-
-        /// @deprecated do not use
-        OGRE_DEPRECATED bool applyTextureAliases(const AliasTextureNamePairList& aliasList, const bool apply = true) const;
         /// @}
 
         /** Tells the material that it needs recompilation. */

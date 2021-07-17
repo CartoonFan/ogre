@@ -139,12 +139,7 @@ ManualObject::ManualObject(const String& name)
     void ManualObject::begin(const String& materialName,
         RenderOperation::OperationType opType, const String& groupName)
     {
-        if (mCurrentSection)
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "You cannot call begin() again until after you call end()",
-                "ManualObject::begin");
-        }
+        OgreAssert(!mCurrentSection, "You cannot call begin() again until after you call end()");
 
         // Check that a valid material was provided
         MaterialPtr material = MaterialManager::getSingleton().getByName(materialName, groupName);
@@ -172,12 +167,7 @@ ManualObject::ManualObject(const String& name)
     //-----------------------------------------------------------------------------
     void ManualObject::begin(const MaterialPtr& mat, RenderOperation::OperationType opType)
     {
-      if (mCurrentSection)
-      {
-          OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-              "You cannot call begin() again until after you call end()",
-              "ManualObject::begin");
-      }
+      OgreAssert(!mCurrentSection, "You cannot call begin() again until after you call end()");
 
       if (mat)
       {
@@ -201,19 +191,8 @@ ManualObject::ManualObject(const String& name)
     //-----------------------------------------------------------------------------
     void ManualObject::beginUpdate(size_t sectionIndex)
     {
-        if (mCurrentSection)
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "You cannot call begin() again until after you call end()",
-                "ManualObject::beginUpdate");
-        }
-        if (sectionIndex >= mSectionList.size())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "Invalid section index - out of range.",
-                "ManualObject::beginUpdate");
-        }
-        mCurrentSection = mSectionList[sectionIndex];
+        OgreAssert(!mCurrentSection, "You cannot call begin() again until after you call end()");
+        mCurrentSection = mSectionList.at(sectionIndex);
         mCurrentUpdating = true;
         mFirstVertex = true;
         mTexCoordIndex = 0;
@@ -296,9 +275,7 @@ ManualObject::ManualObject(const String& name)
                 OgreAssert(elem.getSemantic() != VES_DIFFUSE, "must use VET_COLOUR");
                 elem.baseVertexPointerToElement(pBase, &pFloat);
                 break;
-            case VET_COLOUR:
-            case VET_COLOUR_ABGR:
-            case VET_COLOUR_ARGB:
+            case VET_UBYTE4_NORM:
                 OgreAssert(elem.getSemantic() == VES_DIFFUSE, "must use VES_DIFFUSE");
                 elem.baseVertexPointerToElement(pBase, &pRGBA);
                 break;
@@ -307,8 +284,6 @@ ManualObject::ManualObject(const String& name)
                 break;
             };
 
-
-            RenderSystem* rs;
             unsigned short dims;
             switch(elem.getSemantic())
             {
@@ -333,27 +308,7 @@ ManualObject::ManualObject(const String& name)
                     *pFloat++ = mTempVertex.texCoord[elem.getIndex()][t];
                 break;
             case VES_DIFFUSE:
-                rs = Root::getSingleton().getRenderSystem();
-                if (rs)
-                {
-                    OGRE_IGNORE_DEPRECATED_BEGIN
-                    rs->convertColourValue(mTempVertex.colour, pRGBA++);
-                    OGRE_IGNORE_DEPRECATED_END
-                }
-                else
-                {
-                    switch(elem.getType())
-                    {
-                        case VET_COLOUR_ABGR:
-                            *pRGBA++ = mTempVertex.colour.getAsABGR();
-                            break;
-                        case VET_COLOUR_ARGB:
-                            *pRGBA++ = mTempVertex.colour.getAsARGB();
-                            break;
-                        default:
-                            *pRGBA++ = mTempVertex.colour.getAsRGBA();
-                    }
-                }
+                *pRGBA++ = mTempVertex.colour.getAsABGR();
                 break;
             default:
                 OgreAssert(false, "invalid semantic");
@@ -366,12 +321,7 @@ ManualObject::ManualObject(const String& name)
     //-----------------------------------------------------------------------------
     ManualObject::ManualObjectSection* ManualObject::end(void)
     {
-        if (!mCurrentSection)
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "You cannot call end() until after you call begin()",
-                "ManualObject::end");
-        }
+        OgreAssert(mCurrentSection, "You cannot call end() until after you call begin()");
         if (mTempVertexPending)
         {
             // bake current vertex
@@ -495,46 +445,12 @@ ManualObject::ManualObject(const String& name)
         return result;
     }
     //-----------------------------------------------------------------------------
-    void ManualObject::setMaterialName(size_t idx, const String& name, const String& group)
-    {
-        if (idx >= mSectionList.size())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "Index out of bounds!",
-                "ManualObject::setMaterialName");
-        }
-
-        mSectionList[idx]->setMaterialName(name, group);
-
-    }
-    //-----------------------------------------------------------------------------
-    void ManualObject::setMaterial(size_t subIndex, const MaterialPtr &mat)
-    {
-        if (subIndex >= mSectionList.size())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "Index out of bounds!",
-                "ManualObject::setMaterial");
-        }
-
-        mSectionList[subIndex]->setMaterial(mat);
-    }
-    //-----------------------------------------------------------------------------
     MeshPtr ManualObject::convertToMesh(const String& meshName, const String& groupName)
     {
-        if (mCurrentSection)
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "You cannot call convertToMesh() whilst you are in the middle of "
-                "defining the object; call end() first.",
-                "ManualObject::convertToMesh");
-        }
-        if (mSectionList.empty())
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-                "No data defined to convert to a mesh.",
-                "ManualObject::convertToMesh");
-        }
+        OgreAssert(!mCurrentSection, "You cannot call convertToMesh() whilst you are in the middle of "
+                                     "defining the object; call end() first.");
+        OgreAssert(!mSectionList.empty(), "No data defined to convert to a mesh.");
+
         MeshPtr m = MeshManager::getSingleton().createManual(meshName, groupName);
 
         for (auto sec : mSectionList)
@@ -574,20 +490,6 @@ ManualObject::ManualObject(const String& name)
 
         // Save setting for future sections
         mUseIdentityView = useIdentityView;
-    }
-    //-----------------------------------------------------------------------
-    ManualObject::ManualObjectSection* ManualObject::getSection(unsigned int inIndex) const
-    {
-        if (inIndex >= mSectionList.size())
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-            "Index out of bounds.",
-            "ManualObject::getSection");
-        return mSectionList[inIndex];
-    }
-    //-----------------------------------------------------------------------
-    unsigned int ManualObject::getNumSections(void) const
-    {
-        return static_cast< unsigned int >( mSectionList.size() );
     }
     //-----------------------------------------------------------------------------
     const String& ManualObject::getMovableType(void) const
@@ -660,14 +562,10 @@ ManualObject::ManualObject(const String& name)
         return mEdgeList;
     }
     //-----------------------------------------------------------------------------
-    const ShadowCaster::ShadowRenderableList&
-    ManualObject::getShadowVolumeRenderableList(
-        ShadowTechnique shadowTechnique, const Light* light,
-        HardwareIndexBufferSharedPtr* indexBuffer, size_t* indexBufferUsedSize,
-        bool extrude, Real extrusionDistance, unsigned long flags)
+    const ShadowRenderableList& ManualObject::getShadowVolumeRenderableList(
+        const Light* light, const HardwareIndexBufferPtr& indexBuffer, size_t& indexBufferUsedSize,
+        float extrusionDistance, int flags)
     {
-        assert(indexBuffer && "Only external index buffers are supported right now");       
-
         EdgeData* edgeList = getEdgeList();
         if (!edgeList)
         {
@@ -683,10 +581,10 @@ ManualObject::ManualObject(const String& name)
 
         // Init shadow renderable list if required (only allow indexed)
         bool init = mShadowRenderables.empty() && mAnyIndexed;
+        bool extrude = flags & SRF_EXTRUDE_IN_SOFTWARE;
 
         EdgeData::EdgeGroupList::iterator egi;
         ShadowRenderableList::iterator si, siend;
-        ManualObjectSectionShadowRenderable* esr = 0;
         SectionList::iterator seci;
         if (init)
             mShadowRenderables.resize(edgeList->edgeGroups.size());
@@ -712,28 +610,22 @@ ManualObject::ManualObject(const String& name)
                 mat->load();
                 bool vertexProgram = false;
                 Technique* t = mat->getBestTechnique(0, *seci);
-                for (unsigned short p = 0; p < t->getNumPasses(); ++p)
+                for (auto pass : t->getPasses())
                 {
-                    Pass* pass = t->getPass(p);
                     if (pass->hasVertexProgram())
                     {
                         vertexProgram = true;
                         break;
                     }
                 }
-                *si = OGRE_NEW ManualObjectSectionShadowRenderable(this, indexBuffer,
-                    egi->vertexData, vertexProgram || !extrude);
+                *si = OGRE_NEW ShadowRenderable(this, indexBuffer, egi->vertexData,
+                                                vertexProgram || !extrude);
             }
-            // Get shadow renderable
-            esr = static_cast<ManualObjectSectionShadowRenderable*>(*si);
-            HardwareVertexBufferSharedPtr esrPositionBuffer = esr->getPositionBuffer();
             // Extrude vertices in software if required
             if (extrude)
             {
-                extrudeVertices(esrPositionBuffer,
-                    egi->vertexData->vertexCount,
-                    lightPos, extrusionDistance);
-
+                extrudeVertices((*si)->getPositionBuffer(), egi->vertexData->vertexCount, lightPos,
+                                extrusionDistance);
             }
 
             ++si;
@@ -743,8 +635,7 @@ ManualObject::ManualObject(const String& name)
         updateEdgeListLightFacing(edgeList, lightPos);
 
         // Generate indexes and update renderables
-        generateShadowVolume(edgeList, *indexBuffer, *indexBufferUsedSize, 
-            light, mShadowRenderables, flags);
+        generateShadowVolume(edgeList, indexBuffer, indexBufferUsedSize, light, mShadowRenderables, flags);
 
         return mShadowRenderables;
     }
@@ -854,75 +745,6 @@ ManualObject::ManualObject(const String& name)
             OGRE_DELETE sm->indexData;
             sm->indexData = mRenderOperation.indexData->clone(true);
         }
-    }
-    //--------------------------------------------------------------------------
-    ManualObject::ManualObjectSectionShadowRenderable::ManualObjectSectionShadowRenderable(
-        ManualObject* parent, HardwareIndexBufferSharedPtr* indexBuffer,
-        const VertexData* vertexData, bool createSeparateLightCap,
-        bool isLightCap)
-        : mParent(parent)
-    {
-        // Initialise render op
-        mRenderOp.indexData = OGRE_NEW IndexData();
-        mRenderOp.indexData->indexBuffer = *indexBuffer;
-        mRenderOp.indexData->indexStart = 0;
-        // index start and count are sorted out later
-
-        // Create vertex data which just references position component (and 2 component)
-        mRenderOp.vertexData = OGRE_NEW VertexData();
-        // Map in position data
-        mRenderOp.vertexData->vertexDeclaration->addElement(0,0,VET_FLOAT3, VES_POSITION);
-        ushort origPosBind =
-            vertexData->vertexDeclaration->findElementBySemantic(VES_POSITION)->getSource();
-        mPositionBuffer = vertexData->vertexBufferBinding->getBuffer(origPosBind);
-        mRenderOp.vertexData->vertexBufferBinding->setBinding(0, mPositionBuffer);
-        // Map in w-coord buffer (if present)
-        if(vertexData->hardwareShadowVolWBuffer)
-        {
-            mRenderOp.vertexData->vertexDeclaration->addElement(1,0,VET_FLOAT1, VES_TEXTURE_COORDINATES, 0);
-            mWBuffer = vertexData->hardwareShadowVolWBuffer;
-            mRenderOp.vertexData->vertexBufferBinding->setBinding(1, mWBuffer);
-        }
-        // Use same vertex start as input
-        mRenderOp.vertexData->vertexStart = vertexData->vertexStart;
-
-        if (isLightCap)
-        {
-            // Use original vertex count, no extrusion
-            mRenderOp.vertexData->vertexCount = vertexData->vertexCount;
-        }
-        else
-        {
-            // Vertex count must take into account the doubling of the buffer,
-            // because second half of the buffer is the extruded copy
-            mRenderOp.vertexData->vertexCount =
-                vertexData->vertexCount * 2;
-            if (createSeparateLightCap)
-            {
-                // Create child light cap
-                mLightCap = OGRE_NEW ManualObjectSectionShadowRenderable(parent,
-                    indexBuffer, vertexData, false, true);
-            }
-        }
-    }
-    //--------------------------------------------------------------------------
-    ManualObject::ManualObjectSectionShadowRenderable::~ManualObjectSectionShadowRenderable()
-    {
-        OGRE_DELETE mRenderOp.indexData;
-        OGRE_DELETE mRenderOp.vertexData;
-    }
-    //--------------------------------------------------------------------------
-    void ManualObject::ManualObjectSectionShadowRenderable::getWorldTransforms(
-        Matrix4* xform) const
-    {
-        // pretransformed
-        *xform = mParent->_getParentNodeFullTransform();
-    }
-    //-----------------------------------------------------------------------
-    void ManualObject::ManualObjectSectionShadowRenderable::rebindIndexBuffer(const HardwareIndexBufferSharedPtr& indexBuffer)
-    {
-        mRenderOp.indexData->indexBuffer = indexBuffer;
-        if (mLightCap) mLightCap->rebindIndexBuffer(indexBuffer);
     }
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------

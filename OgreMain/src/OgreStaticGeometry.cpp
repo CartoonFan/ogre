@@ -43,7 +43,6 @@ namespace Ogre {
     StaticGeometry::StaticGeometry(SceneManager* owner, const String& name):
         mOwner(owner),
         mName(name),
-        mBuilt(false),
         mUpperDistance(0.0f),
         mSquaredUpperDistance(0.0f),
         mCastShadows(false),
@@ -291,8 +290,8 @@ namespace Ogre {
 
             // Get the geometry for this SubMesh
             q->submesh = se->getSubMesh();
+            q->material = se->getMaterial();
             q->geometryLodList = determineGeometry(q->submesh);
-            q->materialName = se->getMaterialName();
             q->orientation = orientation;
             q->position = position;
             q->scale = scale;
@@ -308,6 +307,7 @@ namespace Ogre {
     StaticGeometry::SubMeshLodGeometryLinkList*
     StaticGeometry::determineGeometry(SubMesh* sm)
     {
+        OgreAssert(sm->indexData->indexBuffer, "currently only works with indexed geometry");
         // First, determine if we've already seen this submesh before
         SubMeshGeometryLookup::iterator i =
             mSubMeshGeometryLookup.find(sm);
@@ -872,11 +872,9 @@ namespace Ogre {
         return LODIterator(mLodBucketList.begin(), mLodBucketList.end());
     }
     //---------------------------------------------------------------------
-    const ShadowCaster::ShadowRenderableList&
-    StaticGeometry::Region::getShadowVolumeRenderableList(
-        ShadowTechnique shadowTechnique, const Light* light,
-        HardwareIndexBufferSharedPtr* indexBuffer, size_t* indexBufferUsedSize,
-        bool extrude, Real extrusionDistance, unsigned long flags)
+    const ShadowRenderableList& StaticGeometry::Region::getShadowVolumeRenderableList(
+        const Light* light, const HardwareIndexBufferPtr& indexBuffer, size_t& indexBufferUsedSize,
+        float extrusionDistance, int flags)
     {
         // Calculate the object space light details
         Vector4 lightPos = light->getAs4DVector();
@@ -886,9 +884,9 @@ namespace Ogre {
         extrusionDistance *= Math::Sqrt(std::min(std::min(world2Obj3x3.GetColumn(0).squaredLength(), world2Obj3x3.GetColumn(1).squaredLength()), world2Obj3x3.GetColumn(2).squaredLength()));
 
         // per-LOD shadow lists & edge data
-        mLodBucketList[mCurrentLod]->updateShadowRenderables(
-            shadowTechnique, lightPos, indexBuffer, extrude, extrusionDistance, flags);
-        
+        mLodBucketList[mCurrentLod]->updateShadowRenderables(lightPos, indexBuffer,
+                                                             extrusionDistance, flags);
+
         EdgeData* edgeList = mLodBucketList[mCurrentLod]->getEdgeList();
         ShadowRenderableList& shadowRendList = mLodBucketList[mCurrentLod]->getShadowRenderableList();
 
@@ -896,9 +894,7 @@ namespace Ogre {
         updateEdgeListLightFacing(edgeList, lightPos);
 
         // Generate indexes and update renderables
-        generateShadowVolume(edgeList, *indexBuffer, *indexBufferUsedSize,
-            light, shadowRendList, flags);
-
+        generateShadowVolume(edgeList, indexBuffer, indexBufferUsedSize, light, shadowRendList, flags);
 
         return shadowRendList;
 
@@ -924,76 +920,6 @@ namespace Ogre {
             (*i)->dump(of);
         }
         of << "--------------------------" << std::endl;
-    }
-    //--------------------------------------------------------------------------
-    //--------------------------------------------------------------------------
-    StaticGeometry::LODBucket::LODShadowRenderable::LODShadowRenderable(
-        LODBucket* parent, HardwareIndexBufferSharedPtr* indexBuffer,
-        const VertexData* vertexData, bool createSeparateLightCap,
-        bool isLightCap)
-        : mParent(parent)
-    {
-        // Initialise render op
-        mRenderOp.indexData = OGRE_NEW IndexData();
-        mRenderOp.indexData->indexBuffer = *indexBuffer;
-        mRenderOp.indexData->indexStart = 0;
-        // index start and count are sorted out later
-
-        // Create vertex data which just references position component (and 2 component)
-        mRenderOp.vertexData = OGRE_NEW VertexData();
-        // Map in position data
-        mRenderOp.vertexData->vertexDeclaration->addElement(0,0,VET_FLOAT3, VES_POSITION);
-        ushort origPosBind =
-            vertexData->vertexDeclaration->findElementBySemantic(VES_POSITION)->getSource();
-        mPositionBuffer = vertexData->vertexBufferBinding->getBuffer(origPosBind);
-        mRenderOp.vertexData->vertexBufferBinding->setBinding(0, mPositionBuffer);
-        // Map in w-coord buffer (if present)
-        if(vertexData->hardwareShadowVolWBuffer)
-        {
-            mRenderOp.vertexData->vertexDeclaration->addElement(1,0,VET_FLOAT1, VES_TEXTURE_COORDINATES, 0);
-            mWBuffer = vertexData->hardwareShadowVolWBuffer;
-            mRenderOp.vertexData->vertexBufferBinding->setBinding(1, mWBuffer);
-        }
-        // Use same vertex start as input
-        mRenderOp.vertexData->vertexStart = vertexData->vertexStart;
-
-        if (isLightCap)
-        {
-            // Use original vertex count, no extrusion
-            mRenderOp.vertexData->vertexCount = vertexData->vertexCount;
-        }
-        else
-        {
-            // Vertex count must take into account the doubling of the buffer,
-            // because second half of the buffer is the extruded copy
-            mRenderOp.vertexData->vertexCount =
-                vertexData->vertexCount * 2;
-            if (createSeparateLightCap)
-            {
-                // Create child light cap
-                mLightCap = OGRE_NEW LODShadowRenderable(parent,
-                    indexBuffer, vertexData, false, true);
-            }
-        }
-    }
-    //--------------------------------------------------------------------------
-    StaticGeometry::LODBucket::LODShadowRenderable::~LODShadowRenderable()
-    {
-        OGRE_DELETE mRenderOp.indexData;
-        OGRE_DELETE mRenderOp.vertexData;
-    }
-    //--------------------------------------------------------------------------
-    void StaticGeometry::LODBucket::LODShadowRenderable::getWorldTransforms(
-        Matrix4* xform) const
-    {
-        // pretransformed
-        *xform = mParent->getParent()->_getParentNodeFullTransform();
-    }
-    //-----------------------------------------------------------------------
-    void StaticGeometry::LODBucket::LODShadowRenderable::rebindIndexBuffer(const HardwareIndexBufferSharedPtr& indexBuffer)
-    {
-        mRenderOp.indexData->indexBuffer = indexBuffer;
-        if (mLightCap) mLightCap->rebindIndexBuffer(indexBuffer);
     }
     //--------------------------------------------------------------------------
     //--------------------------------------------------------------------------
@@ -1046,15 +972,15 @@ namespace Ogre {
         // Locate a material bucket
         MaterialBucket* mbucket = 0;
         MaterialBucketMap::iterator m =
-            mMaterialBucketMap.find(qmesh->materialName);
+            mMaterialBucketMap.find(qmesh->material->getName());
         if (m != mMaterialBucketMap.end())
         {
             mbucket = m->second;
         }
         else
         {
-            mbucket = OGRE_NEW MaterialBucket(this, qmesh->materialName);
-            mMaterialBucketMap[qmesh->materialName] = mbucket;
+            mbucket = OGRE_NEW MaterialBucket(this, qmesh->material);
+            mMaterialBucketMap[qmesh->material->getName()] = mbucket;
         }
         mbucket->assign(q);
     }
@@ -1156,31 +1082,25 @@ namespace Ogre {
 
     }
     //---------------------------------------------------------------------
-    void StaticGeometry::LODBucket::updateShadowRenderables(
-        ShadowTechnique shadowTechnique, const Vector4& lightPos, 
-        HardwareIndexBufferSharedPtr* indexBuffer, bool extrude, 
-        Real extrusionDistance, unsigned long flags /* = 0  */)
+    void StaticGeometry::LODBucket::updateShadowRenderables(const Vector4& lightPos,
+                                                            const HardwareIndexBufferPtr& indexBuffer,
+                                                            Real extrusionDistance, int flags)
     {
-        assert(indexBuffer && "Only external index buffers are supported right now");
-        assert((*indexBuffer)->getType() == HardwareIndexBuffer::IT_16BIT &&
-            "Only 16-bit indexes supported for now");
+        assert(indexBuffer->getType() == HardwareIndexBuffer::IT_16BIT &&
+               "Only 16-bit indexes supported for now");
 
         // We need to search the edge list for silhouette edges
-        if (!mEdgeList)
-        {
-            OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "You enabled stencil shadows after the build process!");
-        }
+        OgreAssert(mEdgeList, "You enabled stencil shadows after the build process!");
 
         // Init shadow renderable list if required
         bool init = mShadowRenderables.empty();
+        bool extrude = flags & SRF_EXTRUDE_IN_SOFTWARE;
 
         EdgeData::EdgeGroupList::iterator egi;
         ShadowCaster::ShadowRenderableList::iterator si, siend;
-        LODShadowRenderable* esr = 0;
         if (init)
             mShadowRenderables.resize(mEdgeList->edgeGroups.size());
 
-        //bool updatedSharedGeomNormals = false;
         siend = mShadowRenderables.end();
         egi = mEdgeList->edgeGroups.begin();
         for (si = mShadowRenderables.begin(); si != siend; ++si, ++egi)
@@ -1192,30 +1112,23 @@ namespace Ogre {
                 // for extruding the shadow volume) since otherwise we can
                 // get depth-fighting on the light cap
 
-                *si = OGRE_NEW LODShadowRenderable(this, indexBuffer,
-                    egi->vertexData, mVertexProgramInUse || !extrude);
+                *si = OGRE_NEW ShadowRenderable(mParent, indexBuffer, egi->vertexData,
+                                                mVertexProgramInUse || !extrude);
             }
-            // Get shadow renderable
-            esr = static_cast<LODShadowRenderable*>(*si);
-            HardwareVertexBufferSharedPtr esrPositionBuffer = esr->getPositionBuffer();
             // Extrude vertices in software if required
             if (extrude)
             {
-                mParent->extrudeVertices(esrPositionBuffer,
-                    egi->vertexData->vertexCount,
-                    lightPos, extrusionDistance);
-
+                mParent->extrudeVertices((*si)->getPositionBuffer(), egi->vertexData->vertexCount, lightPos,
+                                         extrusionDistance);
             }
-
         }
-
     }
     //--------------------------------------------------------------------------
     //--------------------------------------------------------------------------
     StaticGeometry::MaterialBucket::MaterialBucket(LODBucket* parent,
-        const String& materialName)
+        const MaterialPtr& material)
         : mParent(parent)
-        , mMaterialName(materialName)
+        , mMaterial(material)
         , mTechnique(0)
     {
     }
@@ -1233,28 +1146,50 @@ namespace Ogre {
         // no need to delete queued meshes, these are managed in StaticGeometry
     }
     //--------------------------------------------------------------------------
+    static uint32 getHash(StaticGeometry::SubMeshLodGeometryLink* geom)
+    {
+        // Formulate an identifying string for the geometry format
+        // Must take into account the vertex declaration and the index type
+        // Format is:
+        // Index type
+        // Vertex element (repeating)
+        //   source
+        //   semantic
+        //   type
+        uint32 hash = HashCombine(0, geom->indexData->indexBuffer->getType());
+        const auto& elemList = geom->vertexData->vertexDeclaration->getElements();
+        for (const VertexElement& elem : elemList)
+        {
+            hash = HashCombine(hash, elem.getSource());
+            hash = HashCombine(hash, elem.getSemantic());
+            hash = HashCombine(hash, elem.getType());
+        }
+
+        return hash;
+    }
+    //--------------------------------------------------------------------------
     void StaticGeometry::MaterialBucket::assign(QueuedGeometry* qgeom)
     {
         // Look up any current geometry
-        String formatString = getGeometryFormatString(qgeom->geometry);
-        CurrentGeometryMap::iterator gi = mCurrentGeometryMap.find(formatString);
+        uint32 hash = getHash(qgeom->geometry);
+        CurrentGeometryMap::iterator gi = mCurrentGeometryMap.find(hash);
         bool newBucket = true;
         if (gi != mCurrentGeometryMap.end())
         {
             // Found existing geometry, try to assign
             newBucket = !gi->second->assign(qgeom);
             // Note that this bucket will be replaced as the 'current'
-            // for this format string below since it's out of space
+            // for this hash string below since it's out of space
         }
         // Do we need to create a new one?
         if (newBucket)
         {
-            GeometryBucket* gbucket = OGRE_NEW GeometryBucket(this, formatString,
-                qgeom->geometry->vertexData, qgeom->geometry->indexData);
+            GeometryBucket* gbucket =
+                OGRE_NEW GeometryBucket(this, qgeom->geometry->vertexData, qgeom->geometry->indexData);
             // Add to main list
             mGeometryBucketList.push_back(gbucket);
             // Also index in 'current' list
-            mCurrentGeometryMap[formatString] = gbucket;
+            mCurrentGeometryMap[hash] = gbucket;
             if (!gbucket->assign(qgeom))
             {
                 OGRE_EXCEPT(Exception::ERR_INTERNAL_ERROR,
@@ -1268,19 +1203,11 @@ namespace Ogre {
     void StaticGeometry::MaterialBucket::build(bool stencilShadows)
     {
         mTechnique = 0;
-        mMaterial = MaterialManager::getSingleton().getByName(mMaterialName);
-        if (!mMaterial)
-        {
-            OGRE_EXCEPT(Exception::ERR_ITEM_NOT_FOUND,
-                "Material '" + mMaterialName + "' not found.",
-                "StaticGeometry::MaterialBucket::build");
-        }
         mMaterial->load();
         // tell the geometry buckets to build
-        for (GeometryBucketList::iterator i = mGeometryBucketList.begin();
-            i != mGeometryBucketList.end(); ++i)
+        for (auto gb : mGeometryBucketList)
         {
-            (*i)->build(stencilShadows);
+            gb->build(stencilShadows);
         }
     }
     //--------------------------------------------------------------------------
@@ -1308,36 +1235,11 @@ namespace Ogre {
         }
 
     }
-    //--------------------------------------------------------------------------
-    String StaticGeometry::MaterialBucket::getGeometryFormatString(
-        SubMeshLodGeometryLink* geom)
+    void StaticGeometry::MaterialBucket::setMaterial(const MaterialPtr& material)
     {
-        // Formulate an identifying string for the geometry format
-        // Must take into account the vertex declaration and the index type
-        // Format is (all lines separated by '|'):
-        // Index type
-        // Vertex element (repeating)
-        //   source
-        //   semantic
-        //   type
-        StringStream str;
-
-        str << geom->indexData->indexBuffer->getType() << "|";
-        const VertexDeclaration::VertexElementList& elemList =
-            geom->vertexData->vertexDeclaration->getElements();
-        VertexDeclaration::VertexElementList::const_iterator ei, eiend;
-        eiend = elemList.end();
-        for (ei = elemList.begin(); ei != eiend; ++ei)
-        {
-            const VertexElement& elem = *ei;
-            str << elem.getSource() << "|";
-            str << elem.getSource() << "|";
-            str << elem.getSemantic() << "|";
-            str << elem.getType() << "|";
-        }
-
-        return str.str();
-
+        OgreAssert(material, "NULL pointer");
+        mMaterial = material;
+        mMaterial->load();
     }
     //--------------------------------------------------------------------------
     StaticGeometry::MaterialBucket::GeometryIterator
@@ -1349,7 +1251,7 @@ namespace Ogre {
     //--------------------------------------------------------------------------
     void StaticGeometry::MaterialBucket::dump(std::ofstream& of) const
     {
-        of << "Material Bucket " << mMaterialName << std::endl;
+        of << "Material Bucket " << getMaterialName() << std::endl;
         of << "--------------------------------------------------" << std::endl;
         of << "Geometry buckets: " << mGeometryBucketList.size() << std::endl;
         for (GeometryBucketList::const_iterator i = mGeometryBucketList.begin();
@@ -1373,10 +1275,9 @@ namespace Ogre {
     }
     //--------------------------------------------------------------------------
     //--------------------------------------------------------------------------
-    StaticGeometry::GeometryBucket::GeometryBucket(MaterialBucket* parent,
-        const String& formatString, const VertexData* vData,
-        const IndexData* iData)
-        : Renderable(), mParent(parent), mFormatString(formatString)
+    StaticGeometry::GeometryBucket::GeometryBucket(MaterialBucket* parent, const VertexData* vData,
+                                                   const IndexData* iData)
+        : Renderable(), mParent(parent)
     {
         // Clone the structure from the example
         mVertexData = vData->clone(false);
@@ -1385,9 +1286,8 @@ namespace Ogre {
         mVertexData->vertexStart = 0;
         mIndexData->indexCount = 0;
         mIndexData->indexStart = 0;
-        mIndexType = iData->indexBuffer->getType();
         // Derive the max vertices
-        if (mIndexType == HardwareIndexBuffer::IT_32BIT)
+        if (iData->indexBuffer->getType() == HardwareIndexBuffer::IT_32BIT)
         {
             mMaxVertexIndex = 0xFFFFFFFF;
         }
@@ -1492,8 +1392,29 @@ namespace Ogre {
         return true;
     }
     //--------------------------------------------------------------------------
+    template<typename T>
+    static void copyIndexes(const T* src, T* dst, size_t count, uint32 indexOffset)
+    {
+        if (indexOffset == 0)
+        {
+            memcpy(dst, src, sizeof(T) * count);
+        }
+        else
+        {
+            while(count--)
+            {
+                *dst++ = static_cast<T>(*src++ + indexOffset);
+            }
+        }
+    }
     void StaticGeometry::GeometryBucket::build(bool stencilShadows)
     {
+        // Need to double the vertex count for the position buffer
+        // if we're doing stencil shadows
+        OgreAssert(!stencilShadows || mVertexData->vertexCount * 2 <= mMaxVertexIndex,
+                   "Index range exceeded when using stencil shadows, consider reducing your region size or "
+                   "reducing poly count");
+
         // Ok, here's where we transfer the vertices and indexes to the shared
         // buffers
         // Shortcuts
@@ -1501,34 +1422,24 @@ namespace Ogre {
         VertexBufferBinding* binds = mVertexData->vertexBufferBinding;
 
         // create index buffer, and lock
+        auto indexType = mIndexData->indexBuffer->getType();
         mIndexData->indexBuffer = HardwareBufferManager::getSingleton()
-            .createIndexBuffer(mIndexType, mIndexData->indexCount,
+            .createIndexBuffer(indexType, mIndexData->indexCount,
                 HardwareBuffer::HBU_STATIC_WRITE_ONLY);
         HardwareBufferLockGuard dstIndexLock(mIndexData->indexBuffer, HardwareBuffer::HBL_DISCARD);
         uint32* p32Dest = static_cast<uint32*>(dstIndexLock.pData);
         uint16* p16Dest = static_cast<uint16*>(dstIndexLock.pData);
         // create all vertex buffers, and lock
         ushort b;
-        ushort posBufferIdx = dcl->findElementBySemantic(VES_POSITION)->getSource();
 
         std::vector<uchar*> destBufferLocks;
         std::vector<VertexDeclaration::VertexElementList> bufferElements;
         for (b = 0; b < binds->getBufferCount(); ++b)
         {
-            size_t vertexCount = mVertexData->vertexCount;
-            // Need to double the vertex count for the position buffer
-            // if we're doing stencil shadows
-            if (stencilShadows && b == posBufferIdx)
-            {
-                vertexCount = vertexCount * 2;
-                assert(vertexCount <= mMaxVertexIndex &&
-                    "Index range exceeded when using stencil shadows, consider "
-                    "reducing your region size or reducing poly count");
-            }
             HardwareVertexBufferSharedPtr vbuf =
                 HardwareBufferManager::getSingleton().createVertexBuffer(
                     dcl->getVertexSize(b),
-                    vertexCount,
+                    mVertexData->vertexCount,
                     HardwareBuffer::HBU_STATIC_WRITE_ONLY);
             binds->setBinding(b, vbuf);
             uchar* pLock = static_cast<uchar*>(
@@ -1540,7 +1451,7 @@ namespace Ogre {
 
 
         // Iterate over the geometry items
-        size_t indexOffset = 0;
+        uint32 indexOffset = 0;
         QueuedGeometryList::iterator gi, giend;
         giend = mQueuedGeometry.end();
         Vector3 regionCentre = mParent->getParent()->getParent()->getCentre();
@@ -1553,7 +1464,7 @@ namespace Ogre {
                                                srcIdxData->indexStart * srcIdxData->indexBuffer->getIndexSize(), 
                                                srcIdxData->indexCount * srcIdxData->indexBuffer->getIndexSize(),
                                                HardwareBuffer::HBL_READ_ONLY);
-            if (mIndexType == HardwareIndexBuffer::IT_32BIT)
+            if (indexType == HardwareIndexBuffer::IT_32BIT)
             {
                 uint32* pSrc = static_cast<uint32*>(srcIdxLock.pData);
                 copyIndexes(pSrc, p32Dest, srcIdxData->indexCount, indexOffset);
@@ -1658,50 +1569,16 @@ namespace Ogre {
             binds->getBuffer(b)->unlock();
         }
 
-        // If we're dealing with stencil shadows, copy the position data from
-        // the early half of the buffer to the latter part
         if (stencilShadows)
         {
-            HardwareVertexBufferSharedPtr buf = binds->getBuffer(posBufferIdx);
-            HardwareBufferLockGuard bufLock(buf, HardwareBuffer::HBL_NORMAL);
-            void* pSrc = bufLock.pData;
-            // Point dest at second half (remember vertexcount is original count)
-            void* pDest = static_cast<uchar*>(pSrc) +
-                buf->getVertexSize() * mVertexData->vertexCount;
-            memcpy(pDest, pSrc, buf->getVertexSize() * mVertexData->vertexCount);
-            bufLock.unlock();
-
-            // Also set up hardware W buffer if appropriate
-            RenderSystem* rend = Root::getSingleton().getRenderSystem();
-            if (rend)
-            {
-                buf = HardwareBufferManager::getSingleton().createVertexBuffer(
-                    sizeof(float), mVertexData->vertexCount * 2,
-                    HardwareBuffer::HBU_STATIC_WRITE_ONLY, false);
-                // Fill the first half with 1.0, second half with 0.0
-                bufLock.lock(buf, HardwareBuffer::HBL_DISCARD);
-                float *pW = static_cast<float*>(bufLock.pData);
-                size_t v;
-                for (v = 0; v < mVertexData->vertexCount; ++v)
-                {
-                    *pW++ = 1.0f;
-                }
-                for (v = 0; v < mVertexData->vertexCount; ++v)
-                {
-                    *pW++ = 0.0f;
-                }
-                bufLock.unlock();
-                mVertexData->hardwareShadowVolWBuffer = buf;
-            }
+            mVertexData->prepareForShadowVolume();
         }
-
     }
     //--------------------------------------------------------------------------
     void StaticGeometry::GeometryBucket::dump(std::ofstream& of) const
     {
         of << "Geometry Bucket" << std::endl;
         of << "---------------" << std::endl;
-        of << "Format string: " << mFormatString << std::endl;
         of << "Geometry items: " << mQueuedGeometry.size() << std::endl;
         of << "Vertex count: " << mVertexData->vertexCount << std::endl;
         of << "Index count: " << mIndexData->indexCount << std::endl;
@@ -1709,6 +1586,6 @@ namespace Ogre {
 
     }
     //--------------------------------------------------------------------------
-
+    String StaticGeometryFactory::FACTORY_TYPE_NAME = "StaticGeometry";
 }
 

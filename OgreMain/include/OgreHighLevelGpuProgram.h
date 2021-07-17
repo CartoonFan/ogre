@@ -67,7 +67,7 @@ namespace Ogre {
         /// Whether the high-level program (and it's parameter defs) is loaded
         bool mHighLevelLoaded;
         /// Have we built the name->index parameter map yet?
-        mutable bool mConstantDefsBuilt;
+        bool mConstantDefsBuilt;
         /// The underlying assembler program
         GpuProgramPtr mAssemblerProgram;
         /// Preprocessor options
@@ -88,14 +88,14 @@ namespace Ogre {
         /// Internal unload implementation, must be implemented by subclasses
         virtual void unloadHighLevelImpl(void) = 0;
         /// Populate the passed parameters with name->index map
-        virtual void populateParameterNames(GpuProgramParametersSharedPtr params);
+        void populateParameterNames(GpuProgramParametersSharedPtr params);
         /** Build the constant definition map, must be overridden.
         @note The implementation must fill in the (inherited) mConstantDefs field at a minimum, 
             and if the program requires that parameters are bound using logical 
-            parameter indexes then the mFloatLogicalToPhysical and mIntLogicalToPhysical
+            parameter indexes then the mLogicalToPhysical and mIntLogicalToPhysical
             maps must also be populated.
         */
-        virtual void buildConstantDefinitions() const = 0;
+        virtual void buildConstantDefinitions() = 0;
 
         /** @copydoc Resource::loadImpl */
         void loadImpl();
@@ -125,7 +125,7 @@ namespace Ogre {
         @note
         Only available if this parameters object has named parameters.
         */
-        const GpuNamedConstants& getConstantDefinitions() const;
+        const GpuNamedConstants& getConstantDefinitions() override;
 
         virtual size_t calculateSize(void) const;
 

@@ -32,7 +32,6 @@ THE SOFTWARE.
 #include "OgrePrerequisites.h"
 #include "OgreHardwareBufferManager.h"
 #include "OgreHardwareIndexBuffer.h"
-#include "OgreHardwareUniformBuffer.h"
 #include "OgreHardwareVertexBuffer.h"
 
 namespace Ogre {
@@ -46,31 +45,24 @@ namespace Ogre {
     /// Specialisation of HardwareBuffer for emulation
     class _OgreExport DefaultHardwareBuffer : public HardwareBuffer
     {
-    protected:
+    private:
         unsigned char* mData;
-        /** See HardwareBuffer. */
-        void* lockImpl(size_t offset, size_t length, LockOptions options);
-        /** See HardwareBuffer. */
-        void unlockImpl(void);
+        void* lockImpl(size_t offset, size_t length, LockOptions options) override;
+        void unlockImpl(void) override;
     public:
         DefaultHardwareBuffer(size_t sizeInBytes);
         ~DefaultHardwareBuffer();
-        /** See HardwareBuffer. */
-        void readData(size_t offset, size_t length, void* pDest);
-        /** See HardwareBuffer. */
-        void writeData(size_t offset, size_t length, const void* pSource, bool discardWholeBuffer = false);
+        void readData(size_t offset, size_t length, void* pDest) override;
+        void writeData(size_t offset, size_t length, const void* pSource, bool discardWholeBuffer = false) override;
     };
+
+    typedef DefaultHardwareBuffer DefaultHardwareUniformBuffer;
 
     class _OgreExport DefaultHardwareVertexBuffer : public HardwareVertexBuffer
     {
     public:
-        DefaultHardwareVertexBuffer(size_t vertexSize, size_t numVertices, Usage usage)
-            : DefaultHardwareVertexBuffer(NULL, vertexSize, numVertices, usage)
-        {
-        }
-        DefaultHardwareVertexBuffer(HardwareBufferManagerBase* mgr, size_t vertexSize, size_t numVertices,
-                                    Usage usage)
-            : HardwareVertexBuffer(mgr, vertexSize, numVertices,
+        DefaultHardwareVertexBuffer(size_t vertexSize, size_t numVertices, Usage = HBU_CPU_ONLY)
+            : HardwareVertexBuffer(NULL, vertexSize, numVertices,
                                    new DefaultHardwareBuffer(vertexSize * numVertices))
         {
         }
@@ -79,20 +71,9 @@ namespace Ogre {
     class _OgreExport DefaultHardwareIndexBuffer : public HardwareIndexBuffer
     {
     public:
-        DefaultHardwareIndexBuffer(IndexType idxType, size_t numIndexes, Usage usage)
+        DefaultHardwareIndexBuffer(IndexType idxType, size_t numIndexes, Usage = HBU_CPU_ONLY)
             : HardwareIndexBuffer(NULL, idxType, numIndexes,
                                   new DefaultHardwareBuffer(indexSize(idxType) * numIndexes))
-        {
-        }
-    };
-
-    /// Specialisation of HardwareUniformBuffer for emulation
-    class _OgreExport DefaultHardwareUniformBuffer : public HardwareUniformBuffer
-    {
-    public:
-        DefaultHardwareUniformBuffer(HardwareBufferManagerBase* mgr, size_t sizeBytes, Usage usage,
-                                     bool useShadowBuffer = false, const String& name = "")
-            : HardwareUniformBuffer(mgr, new DefaultHardwareBuffer(sizeBytes))
         {
         }
     };
@@ -112,19 +93,17 @@ namespace Ogre {
         /// Creates a vertex buffer
         HardwareVertexBufferSharedPtr 
             createVertexBuffer(size_t vertexSize, size_t numVerts, 
-                HardwareBuffer::Usage usage, bool useShadowBuffer = false);
+                HardwareBuffer::Usage usage, bool useShadowBuffer = false) override;
         /// Create a hardware index buffer
         HardwareIndexBufferSharedPtr 
             createIndexBuffer(HardwareIndexBuffer::IndexType itype, size_t numIndexes, 
-                HardwareBuffer::Usage usage, bool useShadowBuffer = false);
+                HardwareBuffer::Usage usage, bool useShadowBuffer = false) override;
         /// Create a hardware uniform buffer
-        HardwareUniformBufferSharedPtr createUniformBuffer(size_t sizeBytes, 
-                                    HardwareBuffer::Usage usage = HardwareBuffer::HBU_DYNAMIC_WRITE_ONLY_DISCARDABLE, 
-                                    bool useShadowBuffer = false, const String& name = "");
-        /// Create a hardware counter buffer
-        HardwareCounterBufferSharedPtr createCounterBuffer(size_t sizeBytes,
-                                                           HardwareBuffer::Usage usage = HardwareBuffer::HBU_DYNAMIC_WRITE_ONLY_DISCARDABLE,
-                                                           bool useShadowBuffer = false, const String& name = "");
+        HardwareBufferPtr createUniformBuffer(size_t sizeBytes, HardwareBufferUsage = HBU_CPU_ONLY,
+                                              bool = false) override
+        {
+            return std::make_shared<DefaultHardwareBuffer>(sizeBytes);
+        }
     };
 
     /// DefaultHardwareBufferManager as a Singleton
@@ -159,16 +138,10 @@ namespace Ogre {
             return mImpl->createRenderToVertexBuffer();
         }
 
-        HardwareUniformBufferSharedPtr
-                createUniformBuffer(size_t sizeBytes, HardwareBuffer::Usage usage, bool useShadowBuffer, const String& name = "")
+        HardwareBufferPtr createUniformBuffer(size_t sizeBytes, HardwareBufferUsage usage,
+                                              bool useShadowBuffer)
         {
-            return mImpl->createUniformBuffer(sizeBytes, usage, useShadowBuffer, name);
-        }
-
-        HardwareCounterBufferSharedPtr
-        createCounterBuffer(size_t sizeBytes, HardwareBuffer::Usage usage, bool useShadowBuffer, const String& name = "")
-        {
-            return mImpl->createCounterBuffer(sizeBytes, usage, useShadowBuffer, name);
+            return mImpl->createUniformBuffer(sizeBytes, usage, useShadowBuffer);
         }
     };
 

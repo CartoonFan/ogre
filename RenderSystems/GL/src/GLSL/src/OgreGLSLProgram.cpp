@@ -246,16 +246,8 @@ namespace Ogre {
             GLSLLinkProgramManager::getSingletonPtr()->destroyAllByShader(this);
         }
     }
-
     //-----------------------------------------------------------------------
-    void GLSLProgram::populateParameterNames(GpuProgramParametersSharedPtr params)
-    {
-        getConstantDefinitions();
-        params->_setNamedConstants(mConstantDefs);
-        // Don't set logical / physical maps here, as we can't access parameters by logical index in GLHL.
-    }
-    //-----------------------------------------------------------------------
-    void GLSLProgram::buildConstantDefinitions() const
+    void GLSLProgram::buildConstantDefinitions()
     {
         // We need an accurate list of all the uniforms in the shader, but we
         // can't get at them until we link all the shaders into a program object.
@@ -263,11 +255,10 @@ namespace Ogre {
 
         // Therefore instead, parse the source code manually and extract the uniforms
         createParameterMappingStructures(true);
-        mFloatLogicalToPhysical.reset();
-        mIntLogicalToPhysical.reset();
+        mLogicalToPhysical.reset();
 
         GLSLLinkProgramManager::getSingleton().extractUniformsFromGLSL(
-            mSource, *mConstantDefs, mName);
+            mSource, *mConstantDefs, getResourceLogName());
 
         // Also parse any attached sources
         for (GLSLProgramContainer::const_iterator i = mAttachedGLSLPrograms.begin();

@@ -56,7 +56,7 @@ namespace Ogre
 
         /// Get a resource by name
         /// @see ResourceManager::getResourceByName
-        FontPtr getByName(const String& name, const String& groupName OGRE_RESOURCE_GROUP_INIT);
+        FontPtr getByName(const String& name, const String& groupName OGRE_RESOURCE_GROUP_INIT) const;
 
         /** @copydoc ScriptLoader::parseScript */
         void parseScript(DataStreamPtr& stream, const String& groupName);
@@ -79,7 +79,7 @@ namespace Ogre
         /// @copydoc Singleton::getSingleton()
         static FontManager* getSingletonPtr(void);
 
-    protected:
+    private:
 
         /// Internal methods
         Resource* createImpl(const String& name, ResourceHandle handle, 

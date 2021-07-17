@@ -149,21 +149,14 @@ ShaderGenerator::ShaderGenerator() :
     {
         mShaderLanguage = "hlsl";
     }
-    else if (hmgr.isLanguageSupported("cg"))
-    {
-        mShaderLanguage = "cg";
-    }
     else
     {
         mShaderLanguage = "null"; // falling back to HLSL, for unit tests mainly
         LogManager::getSingleton().logWarning("ShaderGenerator: No supported language found. Falling back to 'null'");
     }
 
-    setShaderProfiles(GPT_VERTEX_PROGRAM, "gpu_vp gp4vp vp40 vp30 arbvp1 vs_4_0 vs_4_0_level_9_3 "
-                                          "vs_4_0_level_9_1 vs_3_0 vs_2_x vs_2_a vs_2_0 vs_1_1 glslv");
-    setShaderProfiles(GPT_FRAGMENT_PROGRAM, "ps_4_0 ps_4_0_level_9_3 ps_4_0_level_9_1 ps_3_x ps_3_0 fp40 "
-                                            "fp30 fp20 arbfp1 ps_2_x ps_2_a ps_2_b ps_2_0 ps_1_4 ps_1_3 "
-                                            "ps_1_2 ps_1_1 glslf");
+    setShaderProfiles(GPT_VERTEX_PROGRAM, "vs_3_0 vs_2_a vs_2_0 vs_1_1");
+    setShaderProfiles(GPT_FRAGMENT_PROGRAM, "ps_3_0 ps_2_a ps_2_b ps_2_0 ps_1_4 ps_1_3 ps_1_2 ps_1_1");
 }
 
 //-----------------------------------------------------------------------------
@@ -281,10 +274,6 @@ void ShaderGenerator::createBuiltinSRSFactories()
         addSubRenderStateFactory(curFactory);
         mBuiltinSRSFactories.push_back(curFactory);
     }
-
-    curFactory = OGRE_NEW TextureAtlasSamplerFactory;
-    addSubRenderStateFactory(curFactory);
-    mBuiltinSRSFactories.push_back(curFactory);
     
     curFactory = OGRE_NEW TriplanarTexturingFactory;
     addSubRenderStateFactory(curFactory);
@@ -669,11 +658,9 @@ void ShaderGenerator::setShaderProfiles(GpuProgramType type, const String& shade
     {
     case GPT_VERTEX_PROGRAM:
         mVertexShaderProfiles = shaderProfiles;
-        mVertexShaderProfilesList = StringUtil::split(shaderProfiles);
         break;
     case GPT_FRAGMENT_PROGRAM:
         mFragmentShaderProfiles = shaderProfiles;
-        mFragmentShaderProfilesList = StringUtil::split(shaderProfiles);
         break;
     default:
         OgreAssert(false, "not implemented");
@@ -692,22 +679,6 @@ const String& ShaderGenerator::getShaderProfiles(GpuProgramType type) const
     default:
         return BLANKSTRING;
     }
-}
-
-const StringVector& ShaderGenerator::getShaderProfilesList(GpuProgramType type)
-{
-    switch(type)
-    {
-    case GPT_VERTEX_PROGRAM:
-        return mVertexShaderProfilesList;
-    case GPT_FRAGMENT_PROGRAM:
-        return mFragmentShaderProfilesList;
-    default:
-        break;
-    }
-
-    static StringVector empty;
-    return empty;
 }
 //-----------------------------------------------------------------------------
 bool ShaderGenerator::hasShaderBasedTechnique(const String& materialName, 
@@ -940,38 +911,6 @@ bool ShaderGenerator::removeAllShaderBasedTechniques(const String& materialName,
     mMaterialEntriesMap.erase(itMatEntry);
     
     return true;
-}
-
-//-----------------------------------------------------------------------------
-bool ShaderGenerator::cloneShaderBasedTechniques(const String& srcMaterialName, 
-                                                 const String& srcGroupName, 
-                                                 const String& dstMaterialName, 
-                                                 const String& dstGroupName)
-{
-    OGRE_LOCK_AUTO_MUTEX;
-
-    //
-    // Check that both source and destination material exist
-    //
-
-    // Make sure material exists.
-    MaterialPtr srcMat = MaterialManager::getSingleton().getByName(srcMaterialName, srcGroupName);
-    MaterialPtr dstMat = MaterialManager::getSingleton().getByName(dstMaterialName, dstGroupName);
-    if (!srcMat || !dstMat || (srcMat == dstMat))
-        return false;
-
-    // Update group name in case it is AUTODETECT_RESOURCE_GROUP_NAME
-    const String& trueSrcGroupName = srcMat->getGroup();
-    const String& trueDstGroupName = dstMat->getGroup();
-
-    // Case the requested material belongs to different group and it is not AUTODETECT_RESOURCE_GROUP_NAME.
-    if ((trueSrcGroupName != srcGroupName && srcGroupName != ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME) ||
-        (trueDstGroupName != dstGroupName && dstGroupName != ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME))
-    {
-        return false;
-    }
-
-    return cloneShaderBasedTechniques(*srcMat, *dstMat);
 }
 
 bool ShaderGenerator::cloneShaderBasedTechniques(const Material& srcMat, Material& dstMat)
@@ -1891,9 +1830,14 @@ void ShaderGenerator::SGScheme::synchronizeWithLightSettings()
         
         auto currLightCount = mRenderState->getLightCount();
 
-        // Case light state has been changed -> invalidate this scheme.
-        if (currLightCount != sceneLightCount)
-        {       
+        auto lightDiff = currLightCount - sceneLightCount;
+
+        // Case new light appeared -> invalidate. But dont invalidate the other way as shader compilation is costly.
+        if (!(Vector3i(-1) < lightDiff))
+        {
+            LogManager::getSingleton().stream(LML_TRIVIAL)
+                << "RTSS: invalidating scheme " << mName << " - lights changed " << currLightCount
+                << " -> " << sceneLightCount;
             curRenderState->setLightCount(sceneLightCount);
             invalidate();
         }
@@ -1907,6 +1851,8 @@ void ShaderGenerator::SGScheme::synchronizeWithFogSettings()
 
     if (sceneManager != NULL && sceneManager->getFogMode() != mFogMode)
     {
+        LogManager::getSingleton().stream(LML_TRIVIAL)
+            << "RTSS: invalidating scheme " << mName << " - fog settings changed";
         mFogMode = sceneManager->getFogMode();
         invalidate();
     }
@@ -1990,8 +1936,6 @@ void ShaderGenerator::SGScheme::invalidateIlluminationPasses(const String& mater
 //-----------------------------------------------------------------------------
 void ShaderGenerator::SGScheme::invalidate(const String& materialName, const String& groupName)
 {
-    SGTechniqueIterator itTech;
-
     // Find the desired technique.
     bool doAutoDetect = groupName == ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME;
     for (SGTechnique* curTechEntry : mTechniqueEntries)

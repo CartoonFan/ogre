@@ -33,6 +33,7 @@ THE SOFTWARE.
 #include "OgreSceneManagerEnumerator.h"
 
 #include <exception>
+#include <deque>
 #include "OgreHeaderPrefix.h"
 
 namespace Ogre
@@ -71,7 +72,7 @@ namespace Ogre
         typedef std::map<String, MovableObjectFactory*> MovableObjectFactoryMap;
         typedef std::vector<DynLib*> PluginLibList;
         typedef std::vector<Plugin*> PluginInstanceList;
-    protected:
+    private:
         RenderSystemList mRenderers;
         RenderSystem* mActiveRenderer;
         String mVersion;
@@ -92,7 +93,7 @@ namespace Ogre
         std::unique_ptr<ResourceGroupManager> mResourceGroupManager;
         std::unique_ptr<ResourceBackgroundQueue> mResourceBackgroundQueue;
         std::unique_ptr<MaterialManager> mMaterialManager;
-        std::unique_ptr<HighLevelGpuProgramManager> mHighLevelGpuProgramManager;
+        std::unique_ptr<GpuProgramManager> mGpuProgramManager;
         std::unique_ptr<ControllerManager> mControllerManager;
         std::unique_ptr<MeshManager> mMeshManager;
         std::unique_ptr<SkeletonManager> mSkeletonManager;
@@ -109,6 +110,7 @@ namespace Ogre
         std::unique_ptr<MovableObjectFactory> mBillboardSetFactory;
         std::unique_ptr<MovableObjectFactory> mLightFactory;
         std::unique_ptr<MovableObjectFactory> mEntityFactory;
+        std::unique_ptr<MovableObjectFactory> mStaticGeometryFactory;
 
         std::unique_ptr<ParticleSystemManager> mParticleManager;
         std::unique_ptr<LodStrategyManager> mLodStrategyManager;
@@ -123,8 +125,6 @@ namespace Ogre
 
         std::unique_ptr<ShadowTextureManager> mShadowTextureManager;
 
-        std::unique_ptr<SceneLoaderManager> mSceneLoaderManager;
-
         RenderWindow* mAutoWindow;
 
         unsigned long mNextFrame;
@@ -132,16 +132,13 @@ namespace Ogre
         bool mRemoveQueueStructuresOnClear;
         Real mDefaultMinPixelSize;
 
-    protected:
+    private:
         /// List of plugin DLLs loaded
         PluginLibList mPluginLibs;
         /// List of Plugin instances registered
         PluginInstanceList mPlugins;
 
         uint32 mNextMovableObjectTypeFlag;
-
-        typedef std::map<String, RenderQueueInvocationSequence*> RenderQueueInvocationSequenceMap;
-        RenderQueueInvocationSequenceMap mRQSequenceMap;
 
         /// Are we initialised yet?
         bool mIsInitialised;
@@ -381,7 +378,7 @@ namespace Ogre
             const String& instanceName = BLANKSTRING);
 
         /// @copydoc SceneManagerEnumerator::createSceneManager(SceneTypeMask, const String&)
-        OGRE_DEPRECATED SceneManager* createSceneManager(SceneTypeMask typeMask,
+        OGRE_DEPRECATED SceneManager* createSceneManager(uint16 typeMask,
             const String& instanceName = BLANKSTRING)
         { return createSceneManager(DefaultSceneManagerFactory::FACTORY_TYPE_NAME, instanceName); }
 
@@ -558,7 +555,7 @@ namespace Ogre
                 const String& groupName = ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
 
         /// @deprecated use ColourValue::getAsBYTE()
-        OGRE_DEPRECATED void convertColourValue(const ColourValue& colour, uint32* pDest);
+        OGRE_DEPRECATED static void convertColourValue(const ColourValue& colour, uint32* pDest) { *pDest = colour.getAsBYTE(); }
 
         /** Retrieves a pointer to the window that was created automatically
             @remarks
@@ -581,10 +578,6 @@ namespace Ogre
             return createRenderWindow(desc.name, desc.width, desc.height,
                                       desc.useFullScreen, &desc.miscParams);
         }
-
-        /// @deprecated call createRenderWindow multiple times
-        OGRE_DEPRECATED bool createRenderWindows(const RenderWindowDescriptionList& renderWindowDescriptions,
-            RenderWindowList& createdWindows);
     
         /** Detaches a RenderTarget from the active render system
         and returns a pointer to it.
@@ -778,11 +771,6 @@ namespace Ogre
         */
         void _setCurrentSceneManager(SceneManager* sm) { mCurrentSceneManager = sm; }
 
-        /// @deprecated do not use
-        OGRE_DEPRECATED void _pushCurrentSceneManager(SceneManager* sm) {}
-        /// @deprecated do not use
-        OGRE_DEPRECATED void _popCurrentSceneManager(SceneManager* sm) {}
-
         /** Internal method used for updating all RenderTarget objects (windows, 
             renderable textures etc) which are set to auto-update.
         @remarks
@@ -807,33 +795,6 @@ namespace Ogre
         @return false if a FrameListener indicated it wishes to exit the render loop
         */
         bool _updateAllRenderTargets(FrameEvent& evt);
-
-        /** Create a new RenderQueueInvocationSequence, useful for linking to
-            Viewport instances to perform custom rendering.
-        @param name The name to give the new sequence
-        */
-        RenderQueueInvocationSequence* createRenderQueueInvocationSequence(
-            const String& name);
-
-        /** Get a RenderQueueInvocationSequence. 
-        @param name The name to identify the sequence
-        */
-        RenderQueueInvocationSequence* getRenderQueueInvocationSequence(
-            const String& name);
-
-        /** Destroy a RenderQueueInvocationSequence. 
-        @remarks
-            You must ensure that no Viewports are using this sequence.
-        @param name The name to identify the sequence
-        */
-        void destroyRenderQueueInvocationSequence(
-            const String& name);
-
-        /** Destroy all RenderQueueInvocationSequences. 
-        @remarks
-            You must ensure that no Viewports are using custom sequences.
-        */
-        void destroyAllRenderQueueInvocationSequences(void);
 
         /// @copydoc Singleton::getSingleton()
         static Root& getSingleton(void);

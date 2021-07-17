@@ -4,10 +4,10 @@ set(CROSS)
 
 set(CMAKE_BUILD_TYPE Debug)
 set(BUILD_DEPS FALSE)
-set(SWIG_EXECUTABLE /usr/bin/swig3.0)
+set(SWIG_EXECUTABLE /usr/bin/swig4.0)
 
 set(RENDERSYSTEMS
-    # tests only run with the legacy GL rendersystem as MESA is too old on buildbot
+    -DOGRE_BUILD_PLUGIN_GLSLANG=TRUE # only builds on Linux, this is the Linux specific config
     -DOGRE_BUILD_RENDERSYSTEM_GL=TRUE
     -DOGRE_BUILD_RENDERSYSTEM_GL3PLUS=TRUE
     -DOGRE_BUILD_RENDERSYSTEM_GLES2=TRUE
@@ -42,6 +42,7 @@ if(DEFINED ENV{APPVEYOR})
     set(CMAKE_BUILD_TYPE Release)
     set(RENDERSYSTEMS
         -DOGRE_BUILD_RENDERSYSTEM_D3D9=TRUE
+        -DOGRE_BUILD_RENDERSYSTEM_TINY=TRUE
         -DOGRE_BUILD_RENDERSYSTEM_GL=TRUE
         -DOGRE_BUILD_RENDERSYSTEM_GLES2=TRUE
         -DOGRE_BUILD_RENDERSYSTEM_GL3PLUS=TRUE)
@@ -54,14 +55,10 @@ if(DEFINED ENV{APPVEYOR})
         "-DPYTHON_LIBRARY=C:\\Python37-x64\\libs\\python37.lib"
         -DOGRE_DEPENDENCIES_DIR=${CMAKE_CURRENT_SOURCE_DIR}/ogredeps)
 
-    if("$ENV{APPVEYOR_BUILD_WORKER_IMAGE}" STREQUAL "Visual Studio 2017")
-        set(GENERATOR -G "Visual Studio 15")
-        set(OTHER ${OTHER}
-            -DCMAKE_PREFIX_PATH="C:\\Qt\\5.12\\msvc2017_64"
-            -DQt5_DIR="C:\\Qt\\5.12\\msvc2017_64\\lib\\cmake\\Qt5")
-    else()
-        set(GENERATOR -G "Visual Studio 12")
-    endif()
+    set(GENERATOR -G "Visual Studio 15")
+    set(OTHER ${OTHER}
+        -DCMAKE_PREFIX_PATH="C:\\Qt\\5.12\\msvc2017_64"
+        -DQt5_DIR="C:\\Qt\\5.12\\msvc2017_64\\lib\\cmake\\Qt5")
 
     set(BUILD_DEPS TRUE)
     set(SWIG_EXECUTABLE "C:\\ProgramData\\chocolatey\\bin\\swig.exe")

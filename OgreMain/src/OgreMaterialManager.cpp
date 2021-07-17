@@ -88,7 +88,7 @@ namespace Ogre {
         return static_pointer_cast<Material>(createResource(name,group,isManual,loader,createParams));
     }
     //-----------------------------------------------------------------------
-    MaterialPtr MaterialManager::getByName(const String& name, const String& groupName)
+    MaterialPtr MaterialManager::getByName(const String& name, const String& groupName) const
     {
         return static_pointer_cast<Material>(getResourceByName(name, groupName));
     }
@@ -97,12 +97,8 @@ namespace Ogre {
         MaterialPtr ret = getByName(useLighting ? "BaseWhite" : "BaseWhiteNoLighting",
                                     ResourceGroupManager::INTERNAL_RESOURCE_GROUP_NAME);
 
-        if (!ret)
-        {
-            OGRE_EXCEPT(Exception::ERR_INTERNAL_ERROR, "Can't find default material "
-                " Did you forget to call MaterialManager::initialise()?",
-                "MaterialManager::getDefaultMaterial");
-        }
+        OgreAssert(ret,
+                   "Can't find default material Did you forget to call MaterialManager::initialise()?");
 
         return ret;
     }

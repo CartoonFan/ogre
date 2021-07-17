@@ -72,7 +72,7 @@ namespace Ogre {
         void _initialise(void);
 
         /// @copydoc ResourceManager::getResourceByName
-        MeshPtr getByName(const String& name, const String& groupName OGRE_RESOURCE_GROUP_INIT);
+        MeshPtr getByName(const String& name, const String& groupName OGRE_RESOURCE_GROUP_INIT) const;
 
         /// Create a new mesh
         /// @copydetails ResourceManager::createResource
@@ -402,7 +402,7 @@ namespace Ogre {
         */
         MeshSerializerListener *getListener();
 
-    protected:
+    private:
 
         /// @copydoc ResourceManager::createImpl
         Resource* createImpl(const String& name, ResourceHandle handle, 

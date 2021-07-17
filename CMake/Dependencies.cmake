@@ -13,52 +13,13 @@
 
 # OGRE_DEPENDENCIES_DIR can be used to specify a single base
 # folder where the required dependencies may be found.
-set(OGRE_DEPENDENCIES_DIR "" CACHE PATH "Path to prebuilt OGRE dependencies")
-option(OGRE_BUILD_DEPENDENCIES "automatically build Ogre Dependencies (freetype, zzip)" TRUE)
+set(OGRE_DEPENDENCIES_DIR "${PROJECT_BINARY_DIR}/Dependencies" CACHE PATH "Path to prebuilt OGRE dependencies")
+option(OGRE_BUILD_DEPENDENCIES "automatically build Ogre Dependencies (SDL2, pugixml)" TRUE)
 
-include(FindPkgMacros)
-getenv_path(OGRE_DEPENDENCIES_DIR)
-if(OGRE_BUILD_PLATFORM_EMSCRIPTEN)
-  set(OGRE_DEP_SEARCH_PATH
-    ${OGRE_DEPENDENCIES_DIR}
-    ${EMSCRIPTEN_ROOT_PATH}/system
-    ${ENV_OGRE_DEPENDENCIES_DIR}
-    "${PROJECT_BINARY_DIR}/EmscriptenDependencies"
-    "${PROJECT_SOURCE_DIR}/EmscriptenDependencies"
-    "${PROJECT_BINARY_DIR}/../EmscriptenDependencies"
-    "${PROJECT_SOURCE_DIR}/../EmscriptenDependencies"
-  )
-elseif(APPLE_IOS)
-  set(OGRE_DEP_SEARCH_PATH 
-    ${OGRE_DEPENDENCIES_DIR}
-    ${ENV_OGRE_DEPENDENCIES_DIR}
-    "${PROJECT_BINARY_DIR}/iOSDependencies"
-    "${PROJECT_SOURCE_DIR}/iOSDependencies"
-    "${PROJECT_BINARY_DIR}/../iOSDependencies"
-    "${PROJECT_SOURCE_DIR}/../iOSDependencies"
-  )
-elseif(OGRE_BUILD_PLATFORM_ANDROID)
-  set(OGRE_DEP_SEARCH_PATH 
-    ${OGRE_DEPENDENCIES_DIR}
-    ${ENV_OGRE_DEPENDENCIES_DIR}
-    "${PROJECT_BINARY_DIR}/AndroidDependencies"
-    "${PROJECT_SOURCE_DIR}/AndroidDependencies"
-    "${PROJECT_BINARY_DIR}/../AndroidDependencies"
-    "${PROJECT_SOURCE_DIR}/../AndroidDependencies"
-  )
-else()
-  set(OGRE_DEP_SEARCH_PATH 
-    ${OGRE_DEPENDENCIES_DIR}
-    ${ENV_OGRE_DEPENDENCIES_DIR}
-    "${PROJECT_BINARY_DIR}/Dependencies"
-    "${PROJECT_SOURCE_DIR}/Dependencies"
-    "${PROJECT_BINARY_DIR}/../Dependencies"
-    "${PROJECT_SOURCE_DIR}/../Dependencies"
-  )
-endif()
+message(STATUS "DEPENDENCIES_DIR: ${OGRE_DEPENDENCIES_DIR}")
 
-message(STATUS "Search path: ${OGRE_DEP_SEARCH_PATH}")
-list(GET OGRE_DEP_SEARCH_PATH 0 OGREDEPS_PATH)
+set(OGREDEPS_PATH "${OGRE_DEPENDENCIES_DIR}")
+set(OGRE_DEP_SEARCH_PATH "${OGRE_DEPENDENCIES_DIR}")
 
 if(CMAKE_CROSSCOMPILING)
     set(CMAKE_FIND_ROOT_PATH ${OGREDEPS_PATH} "${CMAKE_FIND_ROOT_PATH}")
@@ -108,38 +69,6 @@ set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${OGRE_DEP_SEARCH_PATH})
 set(CMAKE_FRAMEWORK_PATH ${CMAKE_FRAMEWORK_PATH} ${OGRE_DEP_SEARCH_PATH})
 
 if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
-    if(MSVC OR EMSCRIPTEN OR MINGW) # other platforms ship zlib
-        message(STATUS "Building zlib")
-        file(DOWNLOAD 
-            http://zlib.net/zlib-1.2.11.tar.gz
-            ${PROJECT_BINARY_DIR}/zlib-1.2.11.tar.gz 
-            EXPECTED_MD5 1c9f62f0778697a09d36121ead88e08e)
-        execute_process(COMMAND ${CMAKE_COMMAND} 
-            -E tar xf zlib-1.2.11.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
-        execute_process(COMMAND ${BUILD_COMMAND_COMMON}
-            -DBUILD_SHARED_LIBS=${OGREDEPS_SHARED}
-            ${PROJECT_BINARY_DIR}/zlib-1.2.11
-            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/zlib-1.2.11)
-        execute_process(COMMAND ${CMAKE_COMMAND} 
-            --build ${PROJECT_BINARY_DIR}/zlib-1.2.11 ${BUILD_COMMAND_OPTS})
-    endif()
-
-    message(STATUS "Building ZZIPlib")
-    file(DOWNLOAD
-        https://github.com/gdraheim/zziplib/archive/v0.13.71.tar.gz
-        ${PROJECT_BINARY_DIR}/zziplib-0.13.71.tar.gz)
-    execute_process(COMMAND ${CMAKE_COMMAND}
-        -E tar xf zziplib-0.13.71.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
-    execute_process(COMMAND ${BUILD_COMMAND_COMMON}
-        -DZLIB_ROOT=${OGREDEPS_PATH}
-        -DZZIPMMAPPED=OFF -DZZIPCOMPAT=OFF -DZZIPLIBTOOL=OFF -DZZIPFSEEKO=OFF -DZZIPWRAP=OFF -DZZIPSDL=OFF -DZZIPBINS=OFF -DZZIPTEST=OFF -DZZIPDOCS=OFF -DBASH=sh
-        -DBUILD_STATIC_LIBS=TRUE
-        -DBUILD_SHARED_LIBS=${OGREDEPS_SHARED}
-        ${PROJECT_BINARY_DIR}/zziplib-0.13.71
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/zziplib-0.13.71)
-    execute_process(COMMAND ${CMAKE_COMMAND} 
-        --build ${PROJECT_BINARY_DIR}/zziplib-0.13.71 ${BUILD_COMMAND_OPTS})
-
     message(STATUS "Building pugixml")
     file(DOWNLOAD
         https://github.com/zeux/pugixml/releases/download/v1.10/pugixml-1.10.tar.gz
@@ -179,7 +108,7 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
             --build ${PROJECT_BINARY_DIR}/freetype-2.10.1/objs ${BUILD_COMMAND_OPTS})
     endif()
 
-    if(MSVC OR MINGW) # other platforms dont need this
+    if(MSVC OR MINGW OR SKBUILD) # other platforms dont need this
         message(STATUS "Building SDL2")
         file(DOWNLOAD
             https://libsdl.org/release/SDL2-2.0.14.tar.gz
@@ -196,7 +125,21 @@ if(OGRE_BUILD_DEPENDENCIES AND NOT EXISTS ${OGREDEPS_PATH})
             --build ${PROJECT_BINARY_DIR}/SDL2-build ${BUILD_COMMAND_OPTS})
     endif()
 
-    if(MSVC OR MINGW) # other platforms dont need this
+    if(MSVC OR MINGW OR SKBUILD) # other platforms dont need this
+      message(STATUS "Building zlib") # only needed for Assimp
+      file(DOWNLOAD
+          http://zlib.net/zlib-1.2.11.tar.gz
+          ${PROJECT_BINARY_DIR}/zlib-1.2.11.tar.gz
+          EXPECTED_MD5 1c9f62f0778697a09d36121ead88e08e)
+      execute_process(COMMAND ${CMAKE_COMMAND}
+          -E tar xf zlib-1.2.11.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+      execute_process(COMMAND ${BUILD_COMMAND_COMMON}
+          -DBUILD_SHARED_LIBS=${OGREDEPS_SHARED}
+          ${PROJECT_BINARY_DIR}/zlib-1.2.11
+          WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/zlib-1.2.11)
+      execute_process(COMMAND ${CMAKE_COMMAND}
+          --build ${PROJECT_BINARY_DIR}/zlib-1.2.11 ${BUILD_COMMAND_OPTS})
+
       message(STATUS "Building Assimp")
       file(DOWNLOAD
           https://github.com/assimp/assimp/archive/v5.0.1.tar.gz
@@ -224,16 +167,6 @@ endif()
 #######################################################################
 # Core dependencies
 #######################################################################
-
-# Find zlib
-find_package(ZLIB)
-macro_log_feature(ZLIB_FOUND "zlib" "Simple data compression library" "http://www.zlib.net" FALSE "" "")
-
-if (ZLIB_FOUND)
-  # Find zziplib
-  find_package(ZZip)
-  macro_log_feature(ZZip_FOUND "zziplib" "Extract data from zip archives" "http://zziplib.sourceforge.net" FALSE "" "")
-endif ()
 
 # Find FreeImage
 find_package(FreeImage)
@@ -293,6 +226,10 @@ if (NOT (APPLE_IOS OR WINDOWS_STORE OR WINDOWS_PHONE OR ANDROID OR EMSCRIPTEN))
   macro_log_feature(Cg_FOUND "cg" "C for graphics shader language" "http://developer.nvidia.com/object/cg_toolkit.html" FALSE "" "")
 endif ()
 
+# Find glslang
+find_package(SPIRV-Tools QUIET) # glslangs own cmake is broken
+macro_log_feature(SPIRV-Tools_FOUND "glslang" "GLSL to SPIRV reference compiler" "https://github.com/KhronosGroup/glslang" FALSE "" "")
+
 # OpenEXR
 find_package(OpenEXR)
 macro_log_feature(OPENEXR_FOUND "OpenEXR" "Load High dynamic range images" "http://www.openexr.com/" FALSE "" "")
@@ -310,6 +247,10 @@ macro_log_feature(SWIG_FOUND "SWIG" "Language bindings (Python, Java, C#) for OG
 # pugixml
 find_package(pugixml QUIET)
 macro_log_feature(pugixml_FOUND "pugixml" "Needed for XMLConverter and DotScene Plugin" "https://pugixml.org/" FALSE "" "")
+
+# Find zlib
+find_package(ZLIB)
+macro_log_feature(ZLIB_FOUND "zlib" "Simple data compression library" "http://www.zlib.net" FALSE "" "")
 
 # Assimp
 find_package(ASSIMP QUIET)
@@ -358,21 +299,3 @@ macro_log_feature(DOXYGEN_FOUND "Doxygen" "Tool for building API documentation" 
 # Find Softimage SDK
 find_package(Softimage)
 macro_log_feature(Softimage_FOUND "Softimage" "Softimage SDK needed for building XSIExporter" FALSE "6.0" "")
-
-#######################################################################
-# Tests
-#######################################################################
-
-# now see if we have a buildable Dependencies package in
-# the source tree. If so, include that, and it will take care of
-# setting everything up, including overriding any of the above
-# findings.
-set(OGREDEPS_RUNTIME_OUTPUT ${OGRE_RUNTIME_OUTPUT})
-if (EXISTS "${PROJECT_SOURCE_DIR}/Dependencies/CMakeLists.txt")
-  add_subdirectory(Dependencies)
-elseif (EXISTS "${PROJECT_SOURCE_DIR}/ogredeps/CMakeLists.txt")
-  add_subdirectory(ogredeps)
-endif ()
-
-# provide option to install dependencies on Windows
-include(InstallDependencies)

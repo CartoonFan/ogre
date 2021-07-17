@@ -79,12 +79,9 @@ namespace Ogre
             return mFont;
         }
 
-        /** See OverlayElement. */
-        virtual const String& getTypeName(void) const;
-        /** See Renderable. */
-        const MaterialPtr& getMaterial(void) const;
-        /** See Renderable. */
-        void getRenderOperation(RenderOperation& op);
+        virtual const String& getTypeName(void) const override;
+        const MaterialPtr& getMaterial(void) const override;
+        void getRenderOperation(RenderOperation& op) override;
 
         /** Sets the colour of the text. 
         @remarks
@@ -130,89 +127,7 @@ namespace Ogre
 
         /** Overridden from OverlayElement */
         void _update(void);
-
-        //-----------------------------------------------------------------------------------------
-        /** Command object for setting the caption.
-                @see ParamCommand
-        */
-        class _OgrePrivate CmdCaption : public ParamCommand
-        {
-        public:
-            String doGet( const void* target ) const;
-            void doSet( void* target, const String& val );
-        };
-        //-----------------------------------------------------------------------------------------
-        /** Command object for setting the char height.
-                @see ParamCommand
-        */
-        class _OgrePrivate CmdCharHeight : public ParamCommand
-        {
-        public:
-            String doGet( const void* target ) const;
-            void doSet( void* target, const String& val );
-        };
-        //-----------------------------------------------------------------------------------------
-        /** Command object for setting the width of a space.
-                @see ParamCommand
-        */
-        class _OgrePrivate CmdSpaceWidth : public ParamCommand
-        {
-        public:
-            String doGet( const void* target ) const;
-            void doSet( void* target, const String& val );
-        };
-        //-----------------------------------------------------------------------------------------
-        /** Command object for setting the caption.
-                @see ParamCommand
-        */
-        class _OgrePrivate CmdFontName : public ParamCommand
-        {
-        public:
-            String doGet( const void* target ) const;
-            void doSet( void* target, const String& val );
-        };
-        //-----------------------------------------------------------------------------------------
-        /** Command object for setting the top colour.
-                @see ParamCommand
-        */
-        class _OgrePrivate CmdColourTop : public ParamCommand
-        {
-        public:
-            String doGet( const void* target ) const;
-            void doSet( void* target, const String& val );
-        };
-        //-----------------------------------------------------------------------------------------
-        /** Command object for setting the bottom colour.
-                @see ParamCommand
-        */
-        class _OgrePrivate CmdColourBottom : public ParamCommand
-        {
-        public:
-            String doGet( const void* target ) const;
-            void doSet( void* target, const String& val );
-        };
-        //-----------------------------------------------------------------------------------------
-        /** Command object for setting the constant colour.
-                @see ParamCommand
-        */
-        class _OgrePrivate CmdColour : public ParamCommand
-        {
-        public:
-            String doGet( const void* target ) const;
-            void doSet( void* target, const String& val );
-        };
-        //-----------------------------------------------------------------------------------------
-        /** Command object for setting the alignment.
-                @see ParamCommand
-        */
-        class _OgrePrivate CmdAlignment : public ParamCommand
-        {
-        public:
-            String doGet( const void* target ) const;
-            void doSet( void* target, const String& val );
-        };
-
-    protected:
+    private:
         /// The text alignment
         Alignment mAlignment;
 
@@ -227,20 +142,9 @@ namespace Ogre
 
         static String msTypeName;
 
-        // Command objects
-        static CmdCharHeight msCmdCharHeight;
-        static CmdSpaceWidth msCmdSpaceWidth;
-        static CmdFontName msCmdFontName;
-        static CmdColour msCmdColour;
-        static CmdColourTop msCmdColourTop;
-        static CmdColourBottom msCmdColourBottom;
-        static CmdAlignment msCmdAlignment;
-
-
         FontPtr mFont;
         Real mCharHeight;
         ushort mPixelCharHeight;
-        bool mSpaceWidthOverridden;
         Real mSpaceWidth;
         ushort mPixelSpaceWidth;
         size_t mAllocSize;

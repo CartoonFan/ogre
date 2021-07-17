@@ -72,12 +72,6 @@ public:
     */
     void removeSubRenderState(SubRenderState* subRenderState);
 
-    /// @deprecated use removeSubRenderState
-    OGRE_DEPRECATED void removeTemplateSubRenderState(SubRenderState* srs) { removeSubRenderState(srs); }
-
-    /// @deprecated use getSubRenderStates
-    OGRE_DEPRECATED const SubRenderStateList& getTemplateSubRenderStateList() const { return mSubRenderStateList; }
-
     /** Get the list of the sub render states composing this render state. */
     const SubRenderStateList& getSubRenderStates() const { return mSubRenderStateList; }
 
@@ -170,9 +164,6 @@ public:
     */
     void addSubRenderStateInstance(SubRenderState* subRenderState);
 
-    /// @deprecated use removeSubRenderState
-    OGRE_DEPRECATED void removeSubRenderStateInstance(SubRenderState* srs) { removeSubRenderState(srs); }
-
     /** Acquire CPU/GPU programs set associated with the given render state and bind them to the pass.
     @param pass The pass to bind the programs to.
     */
@@ -185,8 +176,7 @@ public:
 
     /// Key name for associating with a Pass instance.
     static const char* UserKey;
-// Protected methods
-protected:
+private:
     /** Bind the uniform parameters of a given CPU and GPU program set. */
     static void bindUniformParameters(Program* pCpuProgram, const GpuProgramParametersSharedPtr& passParams);
 
@@ -205,8 +195,6 @@ protected:
     */
     ProgramSet* getProgramSet() { return mProgramSet.get(); }
     
-// Attributes.
-protected:
     // Tells if the list of the sub render states is sorted.
     bool mSubRenderStateSortValid;
     // The program set of this RenderState.

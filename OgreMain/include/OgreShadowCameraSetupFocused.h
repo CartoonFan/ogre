@@ -56,6 +56,18 @@ namespace Ogre {
     */
     class _OgreExport FocusedShadowCameraSetup : public ShadowCameraSetup
     {
+        /** Temporary preallocated frustum to set up a projection matrix in
+            calculateShadowMappingMatrix().
+        */
+        std::unique_ptr<Frustum> mTempFrustum;
+        /** Temporary preallocated camera to set up a light frustum for clipping in FocusedShadowCameraSetup::calculateB.
+        */
+        SceneNode mLightFrustumCameraNode;
+        std::unique_ptr<Camera> mLightFrustumCamera;
+        // Persistent calculations to prevent reallocation
+        mutable ConvexBody mBodyB;
+        /// Use tighter focus region?
+        bool mUseAggressiveRegion;
     protected:
         /** Transform to or from light space as defined by Wimmer et al.
         @remarks
@@ -67,19 +79,7 @@ namespace Ogre {
         static const Matrix4 msNormalToLightSpace;
         static const Matrix4 msLightSpaceToNormal;
 
-        /** Temporary preallocated frustum to set up a projection matrix in 
-            calculateShadowMappingMatrix().
-        */
-        std::unique_ptr<Frustum> mTempFrustum;
-
-        /** Temporary preallocated camera to set up a light frustum for clipping in FocusedShadowCameraSetup::calculateB.
-        */
-        SceneNode mLightFrustumCameraNode;
-        std::unique_ptr<Camera> mLightFrustumCamera;
         mutable bool mLightFrustumCameraCalculated;
-
-        /// Use tighter focus region?
-        bool mUseAggressiveRegion;
 
         /** Internal class holding a point list representation of a convex body.
         */
@@ -142,7 +142,6 @@ namespace Ogre {
         };
 
         // Persistent calculations to prevent reallocation
-        mutable ConvexBody mBodyB;
         mutable PointListBody mPointListBodyB;
         mutable PointListBody mPointListBodyLVS;
 
@@ -169,7 +168,7 @@ namespace Ogre {
         */
         void calculateShadowMappingMatrix(const SceneManager& sm, const Camera& cam, 
             const Light& light, Affine3 *out_view,
-            Matrix4 *out_proj, Camera *out_cam) const;
+            Matrix4 *out_proj, Frustum *out_cam) const;
 
         /** Calculates the intersection bodyB.
         @remarks
@@ -261,13 +260,6 @@ namespace Ogre {
             are mapped to the unit cube.
         */
         Matrix4 transformToUnitCube(const Matrix4& m, const PointListBody& body) const;
-
-        /** Builds a view matrix.
-        @remarks
-            Builds a standard view matrix out of a given position, direction and up vector.
-        */
-        Affine3 buildViewMatrix(const Vector3& pos, const Vector3& dir, const Vector3& up) const;
-
     public:
         /// @deprecated use create()
         FocusedShadowCameraSetup(bool useAggressiveRegion = true);

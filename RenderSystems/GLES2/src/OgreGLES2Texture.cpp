@@ -187,9 +187,9 @@ namespace Ogre {
                 LogManager::getSingleton().logMessage("GLES2Texture::create - Mip: " + StringConverter::toString(mip) +
                                                       " Width: " + StringConverter::toString(width) +
                                                       " Height: " + StringConverter::toString(height) +
-                                                      " Internal Format: " + StringConverter::toString(internalformat, 0, ' ', std::ios::hex) +
-                                                      " Format: " + StringConverter::toString(format, 0, ' ', std::ios::hex)
-                                                      );
+                                                      " Internal Format: " + StringUtil::format("%x", internalformat) +
+                                                      " Format: " + StringUtil::format("%x", format)
+                                                       );
 #endif
                 size = static_cast<GLsizei>(PixelUtil::getMemorySize(width, height, depth, mFormat));
                 
@@ -197,7 +197,6 @@ namespace Ogre {
                 {
                     case TEX_TYPE_1D:
                     case TEX_TYPE_2D:
-                    case TEX_TYPE_2D_RECT:
                         OGRE_CHECK_GL_ERROR(glCompressedTexImage2D(GL_TEXTURE_2D,
                                                mip,
                                                internalformat,
@@ -249,13 +248,12 @@ namespace Ogre {
                                                       " ID: " + StringConverter::toString(mTextureID) +
                                                       " Width: " + StringConverter::toString(width) +
                                                       " Height: " + StringConverter::toString(height) +
-                                                      " Internal Format: " + StringConverter::toString(internalformat, 0, ' ', std::ios::hex));
+                                                      " Internal Format: " + StringUtil::format("%x", internalformat));
 #endif
             switch(mTextureType)
             {
                 case TEX_TYPE_1D:
                 case TEX_TYPE_2D:
-                case TEX_TYPE_2D_RECT:
                 case TEX_TYPE_CUBE_MAP:
                     OGRE_CHECK_GL_ERROR(glTexStorage2D(texTarget, GLsizei(mNumMipmaps+1), internalformat, GLsizei(width), GLsizei(height)));
                     break;
@@ -280,9 +278,9 @@ namespace Ogre {
                                                   " ID: " + StringConverter::toString(mTextureID) +
                                                   " Width: " + StringConverter::toString(width) +
                                                   " Height: " + StringConverter::toString(height) +
-                                                  " Internal Format: " + StringConverter::toString(internalformat, 0, ' ', std::ios::hex) +
-                                                  " Format: " + StringConverter::toString(format, 0, ' ', std::ios::hex) +
-                                                  " Datatype: " + StringConverter::toString(datatype, 0, ' ', std::ios::hex)
+                                                  " Internal Format: " + StringUtil::format("%x", internalformat) +
+                                                  " Format: " + StringUtil::format("%x", format) +
+                                                  " Datatype: " + StringUtil::format("%x", datatype)
                                                   );
 #endif
             // Normal formats

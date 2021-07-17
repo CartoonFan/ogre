@@ -89,7 +89,6 @@ namespace Ogre
         void createDevice();
         
         D3D11HardwareBufferManager* mHardwareBufferManager;
-        GpuProgramManager* mGpuProgramManager;
         D3D11HLSLProgramFactory* mHLSLProgramFactory;
 
         size_t mLastVertexSourceCount;
@@ -260,14 +259,7 @@ namespace Ogre
         void validateDevice(bool forceDeviceElection = false);
         void handleDeviceLost();
         void destroyRenderTarget(const String& name);
-        void setStencilCheckEnabled(bool enabled);
-        void setStencilBufferParams(CompareFunction func = CMPF_ALWAYS_PASS, 
-            uint32 refValue = 0, uint32 compareMask = 0xFFFFFFFF, uint32 writeMask = 0xFFFFFFFF,
-            StencilOperation stencilFailOp = SOP_KEEP, 
-            StencilOperation depthFailOp = SOP_KEEP,
-            StencilOperation passOp = SOP_KEEP, 
-            bool twoSidedOperation = false,
-            bool readBackAsTexture = false);
+        void setStencilState(const StencilState& state) override;
 
         // Low-level overridden members, mainly for internal use
         D3D11HLSLProgram* _getBoundVertexProgram() const;
@@ -295,8 +287,6 @@ namespace Ogre
         void setVertexDeclaration(VertexDeclaration* decl);
         void setVertexDeclaration(VertexDeclaration* decl, VertexBufferBinding* binding);
         void setVertexBufferBinding(VertexBufferBinding* binding);
-        /** render using the feature of reading back the inactive depth-stencil buffers as texture*/
-        void _renderUsingReadBackAsTexture(unsigned int passNr, Ogre::String variableName,unsigned int StartSlot);
         void _dispatchCompute(const Vector3i& workgroupDim);
         void _render(const RenderOperation& op);
 
@@ -309,7 +299,7 @@ namespace Ogre
         void setScissorTest(bool enabled, const Rect& rect = Rect());
         void clearFrameBuffer(unsigned int buffers, 
             const ColourValue& colour = ColourValue::Black, 
-            Real depth = 1.0f, unsigned short stencil = 0);
+            float depth = 1.0f, unsigned short stencil = 0);
         HardwareOcclusionQuery* createHardwareOcclusionQuery(void);
         Real getMinimumDepthInputValue(void);
         Real getMaximumDepthInputValue(void);

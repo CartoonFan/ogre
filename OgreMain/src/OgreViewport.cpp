@@ -50,7 +50,6 @@ namespace Ogre {
         , mShowSkies(true)
         , mShowShadows(true)
         , mVisibilityMask(0xFFFFFFFF)
-        , mRQSequence(0)
         , mMaterialSchemeName(MaterialManager::DEFAULT_SCHEME_NAME)
         , mIsAutoUpdated(true)
 		, mColourBuffer(CBT_BACK)
@@ -215,7 +214,7 @@ namespace Ogre {
                 mCamera->_notifyViewport(this);
 
             // Tell Camera to render into me
-            mCamera->_renderScene(this, mShowOverlays);
+            mCamera->_renderScene(this);
         }
     }
     //---------------------------------------------------------------------
@@ -299,7 +298,7 @@ namespace Ogre {
     void Viewport::setClearEveryFrame(bool inClear, unsigned int inBuffers)
     {
         mClearEveryFrame = inClear;
-        mClearBuffers = inBuffers;
+        mClearBuffers = inClear ? inBuffers : 0;
     }
     //---------------------------------------------------------------------
     bool Viewport::getClearEveryFrame(void) const
@@ -312,8 +311,7 @@ namespace Ogre {
         return mClearBuffers;
     }
     //---------------------------------------------------------------------
-    void Viewport::clear(unsigned int buffers, const ColourValue& col,  
-                         Real depth, unsigned short stencil)
+    void Viewport::clear(uint32 buffers, const ColourValue& col, float depth, uint16 stencil)
     {
         RenderSystem* rs = Root::getSingleton().getRenderSystem();
         if (rs)
@@ -418,30 +416,6 @@ namespace Ogre {
     bool Viewport::getShadowsEnabled(void) const
     {
         return mShowShadows;
-    }
-    //-----------------------------------------------------------------------
-    void Viewport::setRenderQueueInvocationSequenceName(const String& sequenceName)
-    {
-        mRQSequenceName = sequenceName;
-        if (mRQSequenceName.empty())
-        {
-            mRQSequence = 0;
-        }
-        else
-        {
-            mRQSequence =
-                Root::getSingleton().getRenderQueueInvocationSequence(mRQSequenceName);
-        }
-    }
-    //-----------------------------------------------------------------------
-    const String& Viewport::getRenderQueueInvocationSequenceName(void) const
-    {
-        return mRQSequenceName;
-    }
-    //-----------------------------------------------------------------------
-    RenderQueueInvocationSequence* Viewport::_getRenderQueueInvocationSequence(void)
-    {
-        return mRQSequence;
     }
     //-----------------------------------------------------------------------
     void Viewport::pointOrientedToScreen(const Vector2 &v, int orientationMode, Vector2 &outv)

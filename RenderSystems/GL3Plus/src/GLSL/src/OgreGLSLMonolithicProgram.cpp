@@ -129,9 +129,8 @@ namespace Ogre {
         }
 
         // Do we know how many shared params there are yet? Or if there are any blocks defined?
-        GLSLProgramManager::getSingleton().extractUniformsFromProgram(
-            mGLProgramHandle, params, mGLUniformReferences, mGLAtomicCounterReferences,
-            mGLCounterBufferReferences);
+        GLSLProgramManager::getSingleton().extractUniformsFromProgram(mGLProgramHandle, params,
+                                                                      mGLUniformReferences);
 
         mUniformRefsBuilt = true;
     }
@@ -273,8 +272,10 @@ namespace Ogre {
                     case GCT_SAMPLER2DARRAY:
                     case GCT_SAMPLER3D:
                     case GCT_SAMPLERCUBE:
-                    case GCT_SAMPLERRECT:
-                        // Samplers handled like 1-element ints
+                        // Samplers handled like 1-element ints, but use register storage
+                        OGRE_CHECK_GL_ERROR(glUniform1iv(currentUniform->mLocation, glArraySize,
+                                    (GLint*)params->getRegPointer(def->physicalIndex)));
+                        break;
                     case GCT_INT1:
                         OGRE_CHECK_GL_ERROR(glUniform1iv(currentUniform->mLocation, glArraySize,
                                                          (GLint*)params->getIntPointer(def->physicalIndex)));

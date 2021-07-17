@@ -29,8 +29,8 @@ THE SOFTWARE.
 #define __UnifiedHighLevelGpuProgram_H__
 
 #include "OgrePrerequisites.h"
-#include "OgreHighLevelGpuProgram.h"
-#include "OgreHighLevelGpuProgramManager.h"
+#include "OgreGpuProgram.h"
+#include "OgreGpuProgramManager.h"
 #include "OgreHeaderPrefix.h"
 
 namespace Ogre {
@@ -58,26 +58,8 @@ namespace Ogre {
         at another program name. The first one which has a supported syntax 
         will be used.
     */
-    class _OgreExport UnifiedHighLevelGpuProgram : public HighLevelGpuProgram
+    class _OgreExport UnifiedHighLevelGpuProgram final : public GpuProgram
     {
-    private:
-        static std::map<String,int> mLanguagePriorities;
-
-    public:
-        /// Command object for setting delegate (can set more than once)
-        class CmdDelegate : public ParamCommand
-        {
-        public:
-            String doGet(const void* target) const;
-            void doSet(void* target, const String& val);
-        };
-
-        static void setPriority(String shaderLanguage,int priority);
-        static int  getPriority(String shaderLanguage);
-
-    protected:
-        static CmdDelegate msCmdDelegate;
-
         /// Ordered list of potential delegates
         StringVector mDelegateNames;
         /// The chosen delegate
@@ -88,9 +70,9 @@ namespace Ogre {
 
         void createLowLevelImpl(void);
         void unloadHighLevelImpl(void);
-        void buildConstantDefinitions() const;
         void loadFromSource(void);
 
+        void unloadImpl() { resetCompileError(); }
     public:
         /** Constructor, should be used only by factory classes. */
         UnifiedHighLevelGpuProgram(ResourceManager* creator, const String& name, ResourceHandle handle,
@@ -170,7 +152,7 @@ namespace Ogre {
     };
 
     /** Factory class for Unified programs. */
-    class _OgreExport UnifiedHighLevelGpuProgramFactory : public HighLevelGpuProgramFactory
+    class _OgreExport UnifiedHighLevelGpuProgramFactory : public GpuProgramFactory
     {
     public:
         UnifiedHighLevelGpuProgramFactory();

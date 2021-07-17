@@ -36,7 +36,6 @@ THE SOFTWARE.
 #include "OgreStaticGeometry.h"
 #include "OgreSubEntity.h"
 #include "OgreHardwarePixelBuffer.h"
-#include "OgreRenderQueueInvocation.h"
 #include "OgreBillboardChain.h"
 #include "OgreRibbonTrail.h"
 #include "OgreParticleSystem.h"
@@ -53,10 +52,10 @@ THE SOFTWARE.
 #include <cstdio>
 
 namespace Ogre {
+static const String INVOCATION_SHADOWS = "SHADOWS";
 //-----------------------------------------------------------------------
 SceneManager::SceneManager(const String& name) :
 mName(name),
-mLastRenderQueueInvocationCustom(false),
 mCameraInProgress(0),
 mCurrentViewport(0),
 mSkyPlane(this),
@@ -85,8 +84,6 @@ mIlluminationStage(IRS_NONE),
 mLightClippingInfoMapFrameNumber(999),
 mVisibilityMask(0xFFFFFFFF),
 mFindVisibleObjects(true),
-mSuppressRenderStateChanges(false),
-mSuppressShadows(false),
 mCameraRelativeRendering(false),
 mLastLightHash(0),
 mGpuParamsDirty((uint16)GPV_ALL)
@@ -231,9 +228,7 @@ bool SceneManager::hasCamera(const String& name) const
 //-----------------------------------------------------------------------
 void SceneManager::destroyCamera(Camera *cam)
 {
-    if(!cam)
-        OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Cannot destroy a null Camera.", "SceneManager::destroyCamera");
-
+    OgreAssert(cam, "Cannot destroy a null Camera");
     destroyCamera(cam->getName());
 }
 
@@ -795,8 +790,7 @@ void SceneManager::_destroySceneNode(SceneNodeList::iterator i)
 //---------------------------------------------------------------------
 void SceneManager::destroySceneNode(SceneNode* sn)
 {
-    if(!sn)
-        OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Cannot destroy a null SceneNode.", "SceneManager::destroySceneNode");
+    OgreAssert(sn, "Cannot destroy a null SceneNode");
 
     auto pos = sn->mGlobalIndex < mSceneNodes.size() &&
                        sn == *(mSceneNodes.begin() + sn->mGlobalIndex)
@@ -849,9 +843,6 @@ const Pass* SceneManager::_setPass(const Pass* pass, bool evenIfSuppressed,
         }
         //Should we warn or throw an exception if an illegal state was achieved?
     }
-
-    if (mSuppressRenderStateChanges && !evenIfSuppressed)
-        return pass;
 
     if (mIlluminationStage == IRS_RENDER_TO_TEXTURE && shadowDerivation)
     {
@@ -1071,13 +1062,16 @@ const Pass* SceneManager::_setPass(const Pass* pass, bool evenIfSuppressed,
                                      "attempted to render in a pipeline without a compositor");
             auto compName = pTex->getReferencedCompositorName();
             CompositorInstance* refComp = currentChain->getCompositor(compName);
-            OgreAssert(refComp,
-                       ("Current CompositorChain does not contain compositor named " + compName).c_str());
+            if (!refComp)
+                OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
+                            "Current CompositorChain does not contain compositor named " + compName);
 
             auto texName = pTex->getReferencedTextureName();
             TexturePtr refTex = refComp->getTextureInstance(texName, pTex->getReferencedMRTIndex());
 
-            OgreAssert(refTex, ("Compositor " + compName + " does not declare texture " + texName).c_str());
+            if (!refTex)
+                OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
+                            "Compositor " + compName + " does not declare texture " + texName);
             pTex->_setTexturePtr(refTex);
         }
         mDestRenderSystem->_setTextureUnitSettings(unit, *pTex);
@@ -1125,62 +1119,23 @@ void SceneManager::prepareRenderQueue(void)
     q->clear(Root::getSingleton().getRemoveRenderQueueStructuresOnClear());
 
     // Prep the ordering options
+    // We need this here to reset if coming out of a render queue sequence,
+    // but doing it resets any specialised settings set globally per render queue
+    // so only do it when necessary - it's nice to allow people to set the organisation
+    // mode manually for example
 
-    // If we're using a custom render squence, define based on that
-    RenderQueueInvocationSequence* seq = 
-        mCurrentViewport->_getRenderQueueInvocationSequence();
-    if (seq)
+    // Default all the queue groups that are there, new ones will be created
+    // with defaults too
+    for (size_t i = 0; i < RENDER_QUEUE_COUNT; ++i)
     {
-        // Iterate once to crate / reset all
-        RenderQueueInvocationIterator invokeIt = seq->iterator();
-        while (invokeIt.hasMoreElements())
-        {
-            RenderQueueInvocation* invocation = invokeIt.getNext();
-            RenderQueueGroup* group = 
-                q->getQueueGroup(invocation->getRenderQueueGroupID());
-            group->resetOrganisationModes();
-        }
-        // Iterate again to build up options (may be more than one)
-        invokeIt = seq->iterator();
-        while (invokeIt.hasMoreElements())
-        {
-            RenderQueueInvocation* invocation = invokeIt.getNext();
-            RenderQueueGroup* group = 
-                q->getQueueGroup(invocation->getRenderQueueGroupID());
-            group->addOrganisationMode(invocation->getSolidsOrganisation());
-            // also set splitting options
-            updateRenderQueueGroupSplitOptions(group, invocation->getSuppressShadows(), 
-                invocation->getSuppressRenderStateChanges());
-        }
+        if(!q->_getQueueGroups()[i])
+            continue;
 
-        mLastRenderQueueInvocationCustom = true;
-    }
-    else
-    {
-        if (mLastRenderQueueInvocationCustom)
-        {
-            // We need this here to reset if coming out of a render queue sequence, 
-            // but doing it resets any specialised settings set globally per render queue 
-            // so only do it when necessary - it's nice to allow people to set the organisation
-            // mode manually for example
-
-            // Default all the queue groups that are there, new ones will be created
-            // with defaults too
-            for (size_t i = 0; i < RENDER_QUEUE_COUNT; ++i)
-            {
-                if(!q->_getQueueGroups()[i])
-                    continue;
-
-                q->_getQueueGroups()[i]->defaultOrganisationMode();
-            }
-        }
-
-        // Global split options
-        updateRenderQueueSplitOptions();
-
-        mLastRenderQueueInvocationCustom = false;
+        q->_getQueueGroups()[i]->defaultOrganisationMode();
     }
 
+    // Global split options
+    updateRenderQueueSplitOptions();
 }
 //-----------------------------------------------------------------------
 void SceneManager::_renderScene(Camera* camera, Viewport* vp, bool includeOverlays)
@@ -1383,14 +1338,6 @@ void SceneManager::_setDestinationRenderSystem(RenderSystem* sys)
 {
     mDestRenderSystem = sys;
     mShadowRenderer.mDestRenderSystem = sys;
-
-    if(sys)
-    {
-        if (sys->getName().find("Direct3D11") != String::npos)
-        {
-            UnifiedHighLevelGpuProgram::setPriority("hlsl", 1);
-        }
-    }
 }
 //-----------------------------------------------------------------------
 void SceneManager::_releaseManualHardwareResources()
@@ -1433,24 +1380,6 @@ void SceneManager::_restoreManualHardwareResources()
             i->second->_restoreManualHardwareResources();
     }
 }
-//-----------------------------------------------------------------------
-void SceneManager::prepareWorldGeometry(const String& filename)
-{
-    // This default implementation cannot handle world geometry
-    OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-        "World geometry is not supported by the generic SceneManager.",
-        "SceneManager::prepareWorldGeometry");
-}
-//-----------------------------------------------------------------------
-void SceneManager::prepareWorldGeometry(DataStreamPtr& stream, 
-    const String& typeName)
-{
-    // This default implementation cannot handle world geometry
-    OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS,
-        "World geometry is not supported by the generic SceneManager.",
-        "SceneManager::prepareWorldGeometry");
-}
-
 //-----------------------------------------------------------------------
 void SceneManager::setWorldGeometry(const String& filename)
 {
@@ -1589,66 +1518,7 @@ void SceneManager::_findVisibleObjects(
 //-----------------------------------------------------------------------
 void SceneManager::_renderVisibleObjects(void)
 {
-    RenderQueueInvocationSequence* invocationSequence = 
-        mCurrentViewport->_getRenderQueueInvocationSequence();
-    // Use custom sequence only if we're not doing the texture shadow render
-    // since texture shadow render should not be interfered with by suppressing
-    // render state changes for example
-    if (invocationSequence && mIlluminationStage != IRS_RENDER_TO_TEXTURE)
-    {
-        renderVisibleObjectsCustomSequence(invocationSequence);
-    }
-    else
-    {
-        renderVisibleObjectsDefaultSequence();
-    }
-}
-//-----------------------------------------------------------------------
-void SceneManager::renderVisibleObjectsCustomSequence(RenderQueueInvocationSequence* seq)
-{
-    firePreRenderQueues();
-
-    RenderQueueInvocationIterator invocationIt = seq->iterator();
-    while (invocationIt.hasMoreElements())
-    {
-        RenderQueueInvocation* invocation = invocationIt.getNext();
-        uint8 qId = invocation->getRenderQueueGroupID();
-        // Skip this one if not to be processed
-        if (!isRenderQueueToBeProcessed(qId))
-            continue;
-
-
-        bool repeatQueue = false;
-        const String& invocationName = invocation->getInvocationName();
-        RenderQueueGroup* queueGroup = getRenderQueue()->getQueueGroup(qId);
-        do // for repeating queues
-        {
-            // Fire queue started event
-            if (fireRenderQueueStarted(qId, invocationName))
-            {
-                // Someone requested we skip this queue
-                break;
-            }
-
-            // Invoke it
-            invocation->invoke(queueGroup, this);
-
-            // Fire queue ended event
-            if (fireRenderQueueEnded(qId, invocationName))
-            {
-                // Someone requested we repeat this queue
-                repeatQueue = true;
-            }
-            else
-            {
-                repeatQueue = false;
-            }
-        } while (repeatQueue);
-
-
-    }
-
-    firePostRenderQueues();
+    renderVisibleObjectsDefaultSequence();
 }
 //-----------------------------------------------------------------------
 void SceneManager::renderVisibleObjectsDefaultSequence(void)
@@ -1674,10 +1544,8 @@ void SceneManager::renderVisibleObjectsDefaultSequence(void)
         do // for repeating queues
         {
             // Fire queue started event
-            if (fireRenderQueueStarted(qId, 
-                mIlluminationStage == IRS_RENDER_TO_TEXTURE ? 
-                    RenderQueueInvocation::RENDER_QUEUE_INVOCATION_SHADOWS : 
-                    BLANKSTRING))
+            if (fireRenderQueueStarted(qId, mIlluminationStage == IRS_RENDER_TO_TEXTURE ? INVOCATION_SHADOWS
+                                                                                        : BLANKSTRING))
             {
                 // Someone requested we skip this queue
                 break;
@@ -1686,10 +1554,8 @@ void SceneManager::renderVisibleObjectsDefaultSequence(void)
             _renderQueueGroupObjects(pGroup, QueuedRenderableCollection::OM_PASS_GROUP);
 
             // Fire queue ended event
-            if (fireRenderQueueEnded(qId, 
-                mIlluminationStage == IRS_RENDER_TO_TEXTURE ? 
-                    RenderQueueInvocation::RENDER_QUEUE_INVOCATION_SHADOWS : 
-                    BLANKSTRING))
+            if (fireRenderQueueEnded(qId, mIlluminationStage == IRS_RENDER_TO_TEXTURE ? INVOCATION_SHADOWS
+                                                                                      : BLANKSTRING))
             {
                 // Someone requested we repeat this queue
                 repeatQueue = true;
@@ -1751,9 +1617,9 @@ bool SceneManager::validatePassForRendering(const Pass* pass)
     // one pass for shadow texture receive for modulative technique)
     // Also bypass if passes above the first if render state changes are
     // suppressed since we're not actually using this pass data anyway
-    if (!mSuppressShadows && mCurrentViewport->getShadowsEnabled() &&
-        ((isShadowTechniqueModulative() && mIlluminationStage == IRS_RENDER_RECEIVER_PASS)
-         || mIlluminationStage == IRS_RENDER_TO_TEXTURE || mSuppressRenderStateChanges) && 
+    if (mCurrentViewport->getShadowsEnabled() &&
+        ((isShadowTechniqueModulative() && mIlluminationStage == IRS_RENDER_RECEIVER_PASS) ||
+         mIlluminationStage == IRS_RENDER_TO_TEXTURE) &&
         pass->getIndex() > 0)
     {
         return false;
@@ -1778,8 +1644,7 @@ bool SceneManager::validateRenderableForRendering(const Pass* pass, const Render
     // Skip this renderable if we're doing modulative texture shadows, it casts shadows
     // and we're doing the render receivers pass and we're not self-shadowing
     // also if pass number > 0
-    if (!mSuppressShadows && mCurrentViewport->getShadowsEnabled() &&
-        isShadowTechniqueTextureBased())
+    if (mCurrentViewport->getShadowsEnabled() && isShadowTechniqueTextureBased())
     {
         if (mIlluminationStage == IRS_RENDER_RECEIVER_PASS && 
             rend->getCastsShadows() && !mShadowRenderer.mShadowTextureSelfShadow)
@@ -1787,8 +1652,8 @@ bool SceneManager::validateRenderableForRendering(const Pass* pass, const Render
             return false;
         }
         // Some duplication here with validatePassForRendering, for transparents
-        if (((isShadowTechniqueModulative() && mIlluminationStage == IRS_RENDER_RECEIVER_PASS)
-            || mIlluminationStage == IRS_RENDER_TO_TEXTURE || mSuppressRenderStateChanges) && 
+        if (((isShadowTechniqueModulative() && mIlluminationStage == IRS_RENDER_RECEIVER_PASS) ||
+             mIlluminationStage == IRS_RENDER_TO_TEXTURE) &&
             pass->getIndex() > 0)
         {
             return false;
@@ -1818,17 +1683,13 @@ void SceneManager::renderObjects(const QueuedRenderableCollection& objs,
 void SceneManager::_renderQueueGroupObjects(RenderQueueGroup* pGroup, 
                                            QueuedRenderableCollection::OrganisationMode om)
 {
-    bool doShadows = 
-        pGroup->getShadowsEnabled() && 
-        mCurrentViewport->getShadowsEnabled() && 
-        !mSuppressShadows && !mSuppressRenderStateChanges;
-    
+    bool doShadows = pGroup->getShadowsEnabled() && mCurrentViewport->getShadowsEnabled();
+
     // Modulative texture shadows in use
     if (isShadowTechniqueTextureBased() && mIlluminationStage == IRS_RENDER_TO_TEXTURE)
     {
         // Shadow caster pass
-        if (mCurrentViewport->getShadowsEnabled() &&
-            !mSuppressShadows && !mSuppressRenderStateChanges)
+        if (mCurrentViewport->getShadowsEnabled())
         {
             mShadowRenderer.renderTextureShadowCasterQueueGroupObjects(pGroup, om);
         }
@@ -1940,18 +1801,6 @@ void SceneManager::renderSingleObject(Renderable* rend, const Pass* pass,
     mAutoParamDataSource->setCurrentRenderable(rend);
 
     setWorldTransform(rend);
-
-    if(mSuppressRenderStateChanges)
-    {
-        fireRenderSingleObject(rend, pass, mAutoParamDataSource.get(), NULL, true);
-        // Just render
-        mDestRenderSystem->setCurrentPassIterationCount(1);
-        _issueRenderOp(rend, NULL);
-        // Reset view / projection changes if any
-        resetViewProjMode();
-        OgreProfileEndGPUEvent(pass->getParent()->getParent()->getName());
-        return;
-    }
 
     // Reissue any texture gen settings which are dependent on view matrix
     size_t unit = 0;
@@ -2583,6 +2432,19 @@ void SceneManager::removeListener(Listener* delListener)
     if (i != mListeners.end())
         mListeners.erase(i);
 }
+void SceneManager::addShadowTextureListener(ShadowTextureListener* newListener)
+{
+    if (std::find(mShadowRenderer.mListeners.begin(), mShadowRenderer.mListeners.end(), newListener) ==
+        mShadowRenderer.mListeners.end())
+        mShadowRenderer.mListeners.push_back(newListener);
+}
+//---------------------------------------------------------------------
+void SceneManager::removeShadowTextureListener(ShadowTextureListener* delListener)
+{
+    auto i = std::find(mShadowRenderer.mListeners.begin(), mShadowRenderer.mListeners.end(), delListener);
+    if (i != mShadowRenderer.mListeners.end())
+        mShadowRenderer.mListeners.erase(i);
+}
 //---------------------------------------------------------------------
 void SceneManager::firePreRenderQueues()
 {
@@ -2638,42 +2500,6 @@ void SceneManager::fireRenderSingleObject(Renderable* rend, const Pass* pass,
     for (i = mRenderObjectListeners.begin(); i != iend; ++i)
     {
         (*i)->notifyRenderSingleObject(rend, pass, source, pLightList, suppressRenderStateChanges);
-    }
-}
-//---------------------------------------------------------------------
-void SceneManager::fireShadowTexturesUpdated(size_t numberOfShadowTextures)
-{
-    ListenerList listenersCopy = mListeners;
-    ListenerList::iterator i, iend;
-
-    iend = listenersCopy.end();
-    for (i = listenersCopy.begin(); i != iend; ++i)
-    {
-        (*i)->shadowTexturesUpdated(numberOfShadowTextures);
-    }
-}
-//---------------------------------------------------------------------
-void SceneManager::fireShadowTexturesPreCaster(Light* light, Camera* camera, size_t iteration)
-{
-    ListenerList listenersCopy = mListeners;
-    ListenerList::iterator i, iend;
-
-    iend = listenersCopy.end();
-    for (i = listenersCopy.begin(); i != iend; ++i)
-    {
-        (*i)->shadowTextureCasterPreViewProj(light, camera, iteration);
-    }
-}
-//---------------------------------------------------------------------
-void SceneManager::fireShadowTexturesPreReceiver(Light* light, Frustum* f)
-{
-    ListenerList listenersCopy = mListeners;
-    ListenerList::iterator i, iend;
-
-    iend = listenersCopy.end();
-    for (i = listenersCopy.begin(); i != iend; ++i)
-    {
-        (*i)->shadowTextureReceiverPreViewProj(light, f);
     }
 }
 //---------------------------------------------------------------------
@@ -2776,16 +2602,6 @@ void SceneManager::_notifyAutotrackingSceneNode(SceneNode* node, bool autoTrack)
 void SceneManager::setShadowTechnique(ShadowTechnique technique)
 {
     mShadowRenderer.setShadowTechnique(technique);
-}
-//---------------------------------------------------------------------
-void SceneManager::_suppressShadows(bool suppress)
-{
-    mSuppressShadows = suppress;
-}
-//---------------------------------------------------------------------
-void SceneManager::_suppressRenderStateChanges(bool suppress)
-{
-    mSuppressRenderStateChanges = suppress;
 }
 //---------------------------------------------------------------------
 void SceneManager::updateRenderQueueSplitOptions(void)
@@ -2956,31 +2772,7 @@ void SceneManager::findLightsAffectingFrustum(const Camera* camera)
             }
         }
 
-        // Sort the lights if using texture shadows, since the first 'n' will be
-        // used to generate shadow textures and we should pick the most appropriate
-        if (isShadowTechniqueTextureBased())
-        {
-            // Allow a Listener to override light sorting
-            // Reverse iterate so last takes precedence
-            bool overridden = false;
-            ListenerList listenersCopy = mListeners;
-            for (ListenerList::reverse_iterator ri = listenersCopy.rbegin();
-                ri != listenersCopy.rend(); ++ri)
-            {
-                overridden = (*ri)->sortLightsAffectingFrustum(mLightsAffectingFrustum);
-                if (overridden)
-                    break;
-            }
-            if (!overridden)
-            {
-                // default sort (stable to preserve directional light ordering
-                std::stable_sort(
-                    mLightsAffectingFrustum.begin(), mLightsAffectingFrustum.end(), 
-                    lightsForShadowTextureLess());
-            }
-            
-        }
-
+        mShadowRenderer.sortLightsAffectingFrustum(mLightsAffectingFrustum);
         // Use swap instead of copy operator for efficiently
         mCachedLightInfos.swap(mTestLightInfos);
 
@@ -3828,9 +3620,7 @@ SceneManager::getMovableObjectIterator(const String& typeName)
 //---------------------------------------------------------------------
 void SceneManager::destroyMovableObject(MovableObject* m)
 {
-    if(!m)
-        OGRE_EXCEPT(Exception::ERR_INVALIDPARAMS, "Cannot destroy a null MovableObject.", "SceneManager::destroyMovableObject");
-
+    OgreAssert(m, "Cannot destroy a null MovableObject");
     destroyMovableObject(m->getName(), m->getMovableType());
 }
 //---------------------------------------------------------------------

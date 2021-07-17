@@ -155,7 +155,6 @@ void ProgramManager::createDefaultProgramProcessors()
 {
     // Add standard shader processors
 #if OGRE_PLATFORM != OGRE_PLATFORM_ANDROID
-    mDefaultProgramProcessors.push_back(OGRE_NEW CGProgramProcessor);
     mDefaultProgramProcessors.push_back(OGRE_NEW GLSLProgramProcessor);
     mDefaultProgramProcessors.push_back(OGRE_NEW HLSLProgramProcessor);
 #endif
@@ -246,7 +245,6 @@ void ProgramManager::createGpuPrograms(ProgramSet* programSet)
     {
         auto gpuProgram = createGpuProgram(programSet->getCpuProgram(type), programWriter, language,
                                            ShaderGenerator::getSingleton().getShaderProfiles(type),
-                                           ShaderGenerator::getSingleton().getShaderProfilesList(type),
                                            ShaderGenerator::getSingleton().getShaderCachePath());
 
         OgreAssert(gpuProgram, "gpu program could not be created");
@@ -267,10 +265,9 @@ GpuProgramPtr ProgramManager::createGpuProgram(Program* shaderProgram,
                                                ProgramWriter* programWriter,
                                                const String& language,
                                                const String& profiles,
-                                               const StringVector& profilesList,
                                                const String& cachePath)
 {
-    stringstream sourceCodeStringStream;
+    std::stringstream sourceCodeStringStream;
 
     // Generate source code.
     programWriter->writeSourceCode(sourceCodeStringStream, shaderProgram);
@@ -333,29 +330,18 @@ GpuProgramPtr ProgramManager::createGpuProgram(Program* shaderProgram,
     }
 
     pGpuProgram->setSource(source);
-    pGpuProgram->setPreprocessorDefines(shaderProgram->getPreprocessorDefines());
-    pGpuProgram->setParameter("entry_point", shaderProgram->getEntryPointFunction()->getName());
+    pGpuProgram->setParameter("preprocessor_defines", shaderProgram->getPreprocessorDefines());
+    pGpuProgram->setParameter("entry_point", "main");
 
     if (language == "hlsl")
     {
-        // HLSL program requires specific target profile settings - we have to split the profile string.
-        StringVector::const_iterator it = profilesList.begin();
-        StringVector::const_iterator itEnd = profilesList.end();
-        
-        for (; it != itEnd; ++it)
-        {
-            if (GpuProgramManager::getSingleton().isSyntaxSupported(*it))
-            {
-                pGpuProgram->setParameter("target", *it);
-                break;
-            }
-        }
-
+        pGpuProgram->setParameter("target", profiles);
         pGpuProgram->setParameter("enable_backwards_compatibility", "true");
         pGpuProgram->setParameter("column_major_matrices", StringConverter::toString(shaderProgram->getUseColumnMajorMatrices()));
     }
-    
-    pGpuProgram->setParameter("profiles", profiles);
+    else if (language == "cg")
+        pGpuProgram->setParameter("profiles", profiles);
+
     pGpuProgram->load();
 
     // Case an error occurred.
@@ -438,7 +424,6 @@ void ProgramManager::synchronizePixelnToBeVertexOut( ProgramSet* programSet )
     Program* psProgram = programSet->getCpuProgram(GPT_FRAGMENT_PROGRAM);
 
     // first find the vertex shader
-    ShaderFunctionConstIterator itFunction ;
     Function* vertexMain = vsProgram->getEntryPointFunction();
     Function* pixelMain = psProgram->getEntryPointFunction();;
 

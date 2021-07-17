@@ -67,13 +67,6 @@ namespace Ogre {
         SubMesh();
         ~SubMesh();
 
-
-        /// Indicates if this submesh shares vertex data with other meshes or whether it has it's own vertices.
-        bool useSharedVertices;
-
-        /// The render operation type used to render this submesh
-        RenderOperation::OperationType operationType;
-
         /** Dedicated vertex data (only valid if useSharedVertices = false).
             @remarks
                 This data is completely owned by this submesh.
@@ -135,15 +128,18 @@ namespace Ogre {
         /// Reference to parent Mesh (not a smart pointer so child does not keep parent alive).
         Mesh* parent;
 
+        /// Indicates if this submesh shares vertex data with other meshes or whether it has it's own vertices.
+        bool useSharedVertices;
+
+        /// The render operation type used to render this submesh
+        RenderOperation::OperationType operationType;
+
         /// Sets the name of the Material which this SubMesh will use
         void setMaterialName(const String& matName, const String& groupName = ResourceGroupManager::AUTODETECT_RESOURCE_GROUP_NAME );
         const String& getMaterialName(void) const;
 
         void setMaterial(const MaterialPtr& mat) { mMaterial = mat; }
         const MaterialPtr& getMaterial() const { return mMaterial; }
-
-        /// @deprecated use getMaterial() instead
-        OGRE_DEPRECATED bool isMatInitialised(void) const { return bool(mMaterial); }
 
         /** Returns a RenderOperation structure required to render this mesh.
             @param 
@@ -195,25 +191,9 @@ namespace Ogre {
         /// @deprecated do not use
         void addTextureAlias(const String& aliasName, const String& textureName);
         /// @deprecated do not use
-        OGRE_DEPRECATED void removeTextureAlias(const String& aliasName);
-        /// @deprecated do not use
         OGRE_DEPRECATED void removeAllTextureAliases(void);
         /// @deprecated do not use
         bool hasTextureAliases(void) const { return !mTextureAliases.empty(); }
-        /// @deprecated do not use
-        OGRE_DEPRECATED size_t getTextureAliasCount(void) const { return mTextureAliases.size(); }
-
-        /**  The current material used by the submesh is copied into a new material
-            and the submesh's texture aliases are applied if the current texture alias
-            names match those found in the original material.
-        @remarks
-            The submesh's texture aliases must be setup prior to calling this method.
-            If a new material has to be created, the subMesh autogenerates the new name.
-            The new name is the old name + "_" + number.
-        @return 
-            True if texture aliases were applied and a new material was created.
-        */
-        bool updateMaterialUsingTextureAliases(void);
 
         /** Get the type of any vertex animation used by dedicated geometry.
         */
@@ -242,15 +222,7 @@ namespace Ogre {
          */
         SubMesh * clone(const String& newName, Mesh *parentMesh = 0);
 
-    protected:
-
-        /// the material this SubMesh uses.
-        MaterialPtr mMaterial;
-
-        /// paired list of texture aliases and texture names
-        AliasTextureNamePairList mTextureAliases;
-
-        VertexBoneAssignmentList mBoneAssignments;
+    private:
 
         /// Flag indicating that bone assignments need to be recompiled
         bool mBoneAssignmentsOutOfDate;
@@ -263,6 +235,14 @@ namespace Ogre {
 
         /// Is Build Edges Enabled
         bool mBuildEdgesEnabled;
+
+        /// the material this SubMesh uses.
+        MaterialPtr mMaterial;
+
+        /// paired list of texture aliases and texture names
+        AliasTextureNamePairList mTextureAliases;
+
+        VertexBoneAssignmentList mBoneAssignments;
 
         /// Internal method for removing LOD data
         void removeLodLevels(void);

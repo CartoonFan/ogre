@@ -47,8 +47,6 @@ namespace Ogre {
     /** Specialisation of HardwareBuffer for a vertex buffer. */
     class _OgreExport HardwareVertexBuffer : public HardwareBuffer
     {
-        protected:
-
             bool mIsInstanceData;
             HardwareBufferManagerBase* mMgr;
             size_t mNumVertices;
@@ -128,14 +126,13 @@ namespace Ogre {
         VET_FLOAT2 = 1,
         VET_FLOAT3 = 2,
         VET_FLOAT4 = 3,
-        VET_COLOUR = 4,  ///< @deprecated use VET_UBYTE4_NORM
+
         VET_SHORT1 = 5,  ///< @deprecated (see #VertexElementType note)
         VET_SHORT2 = 6,
         VET_SHORT3 = 7,  ///< @deprecated (see #VertexElementType note)
         VET_SHORT4 = 8,
         VET_UBYTE4 = 9,
-        VET_COLOUR_ARGB = 10,  ///< @deprecated use VET_UBYTE4_NORM
-        VET_COLOUR_ABGR = 11,  ///< @deprecated use VET_UBYTE4_NORM
+        _DETAIL_SWAP_RB = 10,
 
         // the following are not universally supported on all hardware:
         VET_DOUBLE1 = 12,
@@ -160,7 +157,10 @@ namespace Ogre {
         VET_SHORT2_NORM = 31,  /// signed shorts (normalized to -1..1)
         VET_SHORT4_NORM = 32,
         VET_USHORT2_NORM = 33, /// unsigned shorts (normalized to 0..1)
-        VET_USHORT4_NORM = 34
+        VET_USHORT4_NORM = 34,
+        VET_COLOUR = VET_UBYTE4_NORM,  ///< @deprecated use VET_UBYTE4_NORM
+        VET_COLOUR_ARGB = VET_UBYTE4_NORM,  ///< @deprecated use VET_UBYTE4_NORM
+        VET_COLOUR_ABGR = VET_UBYTE4_NORM,  ///< @deprecated use VET_UBYTE4_NORM
     };
 
     /** This class declares the usage of a single vertex buffer as a component
@@ -174,13 +174,13 @@ namespace Ogre {
     */
     class _OgreExport VertexElement : public VertexDataAlloc
     {
-    protected:
+    private:
+        /// The offset in the buffer that this element starts at
+        size_t mOffset;
         /// The source vertex buffer, as bound to an index using VertexBufferBinding
         unsigned short mSource;
         /// Index of the item, only applicable for some elements like texture coords
         unsigned short mIndex;
-        /// The offset in the buffer that this element starts at
-        size_t mOffset;
         /// The type of element
         VertexElementType mType;
         /// The meaning of the element
@@ -233,8 +233,10 @@ namespace Ogre {
         @param src source colour
         @param dst The destination type
         */
-        static uint32 convertColourValue(const ColourValue& src,
-            VertexElementType dst);
+        static uint32 convertColourValue(const ColourValue& src, VertexElementType dst)
+        {
+            return src.getAsABGR();
+        }
 
         /** Utility method to get the most appropriate packed colour vertex element format. */
         static VertexElementType getBestColourVertexElementType(void);
@@ -488,7 +490,7 @@ namespace Ogre {
     public:
         /// Defines the vertex buffer bindings used as source for vertex declarations
         typedef std::map<unsigned short, HardwareVertexBufferSharedPtr> VertexBufferBindingMap;
-    protected:
+    private:
         VertexBufferBindingMap mBindingMap;
         mutable unsigned short mHighIndex;
     public:

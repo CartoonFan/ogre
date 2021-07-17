@@ -122,15 +122,12 @@ namespace Ogre
         ///  The bitmask applied to both the stencil value and the reference value before comparison
         uint32 compareMask;
         /** The bitmask the controls which bits from stencilRefValue will be written to stencil buffer
-        (valid for operations such as SOP_REPLACE) */
+        (valid for operations such as #SOP_REPLACE) */
         uint32 writeMask;
 
         /// Turns stencil buffer checking on or off
         bool enabled : 1;
-        /** If set to true, then if you render both back and front faces
-        (you'll have to turn off culling) then these parameters will apply for front faces,
-        and the inverse of them will happen for back faces (keep remains the same)
-         */
+        /// Toggles two-sided stencil operation, which swaps increment and decrement for back-facing polygons.
         bool twoSidedOperation : 1;
 
         StencilState()
@@ -229,6 +226,7 @@ namespace Ogre
         | FSAA | 0 | concatenation of "FSAA" and "FSAAHint" as in  @ref _createRenderWindow  |
         | Video Mode | - | Window resolution |
         | Display Frequency | - | "displayFrequency" in  @ref _createRenderWindow |
+        | Content Scaling Factor | 1.0 | "contentScalingFactor" in  @ref _createRenderWindow |
         @param
         name The name of the option to alter.
         @param
@@ -260,9 +258,6 @@ namespace Ogre
         directly, although  this can be done if the app wants to.
         */
         virtual void _initialise();
-
-        /// @deprecated assume true
-        OGRE_DEPRECATED virtual bool isStaticBufferLockable() const { return true; }
 
         /** Query the real capabilities of the GPU and driver in the RenderSystem*/
         virtual RenderSystemCapabilities* createRenderSystemCapabilities() const = 0;
@@ -379,9 +374,10 @@ namespace Ogre
         Options are case sensitive. Unrecognised parameters will be ignored silently.
         These values might be platform dependent, but these are present for all platforms unless
         indicated otherwise:
-        | Key | Type / Values | Default | Description | Notes |
+
+        | Key | Type / Values | Default | Description | Platform |
         |-----|---------------|---------|-------------|-------|
-        | title | Any string | RenderTarget name | The title of the window that will appear in the title bar |  |
+        | title | String | RenderTarget name | The title of the window that will appear in the title bar |  |
         | left | Positive integers | Centred | Screen x coordinate from left |  |
         | top | Positive integers | Centred | Screen y coordinate from left |  |
         | border | none, fixed, resize | resize | The type of window border (in windowed mode) |  |
@@ -392,37 +388,31 @@ namespace Ogre
         | vsyncInterval | 1, 2, 3, 4 | 1 | If vsync is enabled, the minimum number of vertical blanks that should occur between renders. For example if vsync is enabled, the refresh rate is 60 and this is set to 2, then the frame rate will be locked at 30. |  |
         | Full Screen | true, false | false | Specify whether to create the window in full screen mode | |
         | displayFrequency | Refresh rate in Hertz (e.g. 60, 75, 100) | Desktop vsync rate | Display frequency rate, for fullscreen mode |  |
-        | parentWindowHandle | <ul><li>Win32: HWND as integer<li>GLX: poslong:posint:poslong (display*:screen:windowHandle) or poslong:posint:poslong:poslong (display*:screen:windowHandle:XVisualInfo*) | 0 (none) | Parent window handle, for embedding the OGRE in a child of an external window |  |
-        | externalWindowHandle | <ul><li>Win32: HWND as integer<li>GLX: poslong:posint:poslong (display*:screen:windowHandle) or poslong:posint:poslong:poslong (display*:screen:windowHandle:XVisualInfo*)<li>OS X Cocoa: OgreGLView address as an integer. You can pass NSView or NSWindow too, but should perform OgreGLView callbacks into the Ogre manually.<li>OS X Carbon: WindowRef as an integer<li>iOS: UIWindow address as an integer</ul> | 0 (none) | External window handle, for embedding the OGRE render in an existing window |  |
-        | externalGLControl | true, false | false | Let the external window control OpenGL i.e. don't select a pixel format for the window, do not change v-sync and do not swap buffer. When set to true, the calling application is responsible of OpenGL initialization and buffer swapping. It should also create an OpenGL context for its own rendering, Ogre will create one for its use. Then the calling application must also enable Ogre OpenGL context before calling any Ogre function and restore its OpenGL context after these calls. | OpenGL Specific |
-        | currentGLContext | true, false | false | Use an externally created GL context. (Must be current) | OpenGL Specific |
-        | minColourBufferSize | Positive integer (usually 16, 32) | 16 | Min total colour buffer size. See EGL_BUFFER_SIZE | OpenGL Specific |
-        | windowProc | WNDPROC | DefWindowProc | function that processes window messages | Win 32 Specific |
-        | colourDepth | 16, 32 | Desktop depth | Colour depth of the resulting rendering window; only applies if fullScreen | Win32 Specific |
-        | FSAAHint | %RenderSystem specific. Currently enables EQAA/ CSAA mode on D3D: if you want 4f8x (8x CSAA), set FSAA=4 and this to "f8" | Blank | FSAA mode hint | D3D Specific |
-        | outerDimensions | true, false | false | Whether the width/height is expressed as the size of the outer window, rather than the content area | Win32 Specific  |
-        | monitorIndex | | -1 | | Win 32 Specific |
-        | monitorHandle | | 0 (none) | | Win 32 Specific (OpenGL) |
-        | enableDoubleClick | true, false | false | Enable the window to keep track and transmit double click messages. | Win32 Specific |
-        | useNVPerfHUD | true, false | false | Enable the use of nVidia NVPerfHUD | DirectX Specific |
-        | depthBuffer | true, false | true | Use depth buffer | DirectX9 Specific |
-        | NSOpenGLCPSurfaceOrder | -1 or 1 | 1 | [NSOpenGLCPSurfaceOrder](https://developer.apple.com/documentation/appkit/nsopenglcpsurfaceorder) | Mac OS X Specific |
-        | contentScalingFactor | Positive Float greater than 1.0 | The default content scaling factor of the screen | On IOS specifies the CAEAGLLayer content scaling factor. Only supported on iOS 4 or greater. This can be useful to limit the resolution of the OpenGL ES backing store. For example, the iPhone 4's native resolution is 960 x 640\. Windows are always 320 x 480, if you would like to limit the display to 720 x 480, specify 1.5 as the scaling factor. | iOS / Android Specific |
-        | externalViewHandle | UIView pointer as an integer | 0 | External view handle, for rendering OGRE render in an existing view | iOS Specific |
-        | externalViewControllerHandle | UIViewController pointer as an integer | 0 | External view controller handle, for embedding OGRE in an existing view controller | iOS Specific |
-        | externalSharegroup | EAGLSharegroup pointer as an integer | 0 | External sharegroup, used to shared GL resources between contexts | iOS Specific |
-        | CSAA | Positive integer (usually 0, 2, 4, 8, 16) | 0 | [Coverage sampling factor](https://www.khronos.org/registry/egl/extensions/NV/EGL_NV_coverage_sample.txt) | Android Specific |
-        | maxColourBufferSize | Positive integer (usually 16, 32) | 32 | Max EGL_BUFFER_SIZE | Android Specific |
-        | maxStencilBufferSize | Positive integer (usually 0, 8) | 0 | EGL_STENCIL_SIZE | Android Specific |
-        | maxDepthBufferSize | Positive integer (usually 0, 16, 24) | 16 | EGL_DEPTH_SIZE | Android Specific |
+        | externalWindowHandle | <ul><li>Win32: HWND as int<li>Linux: X11 Window as ulong<li>OSX: OgreGLView address as an integer. You can pass NSView or NSWindow too, but should perform OgreGLView callbacks into the Ogre manually<li>iOS: UIWindow address as an integer<li>Emscripten: canvas selector String ("#canvas")</ul> | 0 (none) | External window handle, for embedding the OGRE render in an existing window |  |
+        | externalGLControl | true, false | false | Let the external window control OpenGL i.e. don't select a pixel format for the window, do not change v-sync and do not swap buffer. When set to true, the calling application is responsible of OpenGL initialization and buffer swapping. It should also create an OpenGL context for its own rendering, Ogre will create one for its use. Then the calling application must also enable Ogre OpenGL context before calling any Ogre function and restore its OpenGL context after these calls. | OpenGL |
+        | currentGLContext | true, false | false | Use an externally created GL context. (Must be current) | OpenGL |
+        | minColourBufferSize | Positive integer (usually 16, 32) | 16 | Min total colour buffer size. See EGL_BUFFER_SIZE | OpenGL |
+        | windowProc | WNDPROC | DefWindowProc | function that processes window messages | Win 32 |
+        | colourDepth | 16, 32 | Desktop depth | Colour depth of the resulting rendering window; only applies if fullScreen | Win32 |
+        | FSAAHint | %RenderSystem specific. Currently enables EQAA/ CSAA mode on D3D: if you want 4f8x (8x CSAA), set FSAA=4 and this to "f8" | Blank | FSAA mode hint | D3D |
+        | outerDimensions | true, false | false | Whether the width/height is expressed as the size of the outer window, rather than the content area | Win32  |
+        | monitorIndex | | -1 | | Win 32 |
+        | monitorHandle | | 0 (none) | | Win 32 (OpenGL) |
+        | enableDoubleClick | true, false | false | Enable the window to keep track and transmit double click messages. | Win32 |
+        | useNVPerfHUD | true, false | false | Enable the use of nVidia NVPerfHUD | D3D |
+        | depthBuffer | true, false | true | Use depth buffer | D3D |
+        | NSOpenGLCPSurfaceOrder | -1 or 1 | 1 | [NSOpenGLCPSurfaceOrder](https://developer.apple.com/documentation/appkit/nsopenglcpsurfaceorder) | OSX |
+        | contentScalingFactor | Positive Float | The default content scaling factor of the screen | On IOS specifies the CAEAGLLayer content scaling factor. This can be useful to limit the resolution of the OpenGL ES backing store. For example, the iPhone 4's native resolution is 960 x 640\. Windows are always 320 x 480, if you would like to limit the display to 720 x 480, specify 1.5 as the scaling factor. | OSX, iOS, Android |
+        | externalViewHandle | UIView pointer as an integer | 0 | External view handle, for rendering OGRE render in an existing view | iOS |
+        | externalViewControllerHandle | UIViewController pointer as an integer | 0 | External view controller handle, for embedding OGRE in an existing view controller | iOS |
+        | externalSharegroup | EAGLSharegroup pointer as an integer | 0 | External sharegroup, used to shared GL resources between contexts | iOS |
+        | CSAA | Positive integer (usually 0, 2, 4, 8, 16) | 0 | [Coverage sampling factor](https://www.khronos.org/registry/egl/extensions/NV/EGL_NV_coverage_sample.txt) | Android |
+        | maxColourBufferSize | Positive integer (usually 16, 32) | 32 | Max EGL_BUFFER_SIZE | Android |
+        | maxStencilBufferSize | Positive integer (usually 0, 8) | 0 | EGL_STENCIL_SIZE | Android |
+        | maxDepthBufferSize | Positive integer (usually 0, 16, 24) | 16 | EGL_DEPTH_SIZE | Android |
         */
         virtual RenderWindow* _createRenderWindow(const String &name, unsigned int width, unsigned int height, 
             bool fullScreen, const NameValuePairList *miscParams = 0);
-
-        /// @deprecated call _createRenderWindow multiple times
-        OGRE_DEPRECATED bool _createRenderWindows(const RenderWindowDescriptionList& renderWindowDescriptions,
-            RenderWindowList& createdWindows);
-
         
         /** Create a MultiRenderTarget, which is a render target that renders to multiple RenderTextures
         at once. Surfaces can be bound and unbound at will.
@@ -451,13 +441,6 @@ namespace Ogre
         */
         virtual RenderTarget * detachRenderTarget( const String &name );
 
-        /// Iterator over RenderTargets
-        typedef MapIterator<Ogre::RenderTargetMap> RenderTargetIterator;
-
-        /** Returns a specialised MapIterator over all render targets attached to the RenderSystem. */
-        RenderTargetIterator getRenderTargetIterator(void) {
-            return RenderTargetIterator( mRenderTargets.begin(), mRenderTargets.end() );
-        }
         /** Returns the global instance vertex buffer.
         */
         HardwareVertexBufferSharedPtr getGlobalInstanceVertexBuffer() const;
@@ -792,12 +775,12 @@ namespace Ogre
         virtual unsigned int _getVertexCount(void) const;
 
         /// @deprecated use ColourValue::getAsBYTE()
-        OGRE_DEPRECATED void convertColourValue(const ColourValue& colour, uint32* pDest);
-        /// @deprecated assume VET_UBYTE4_NORM
-        OGRE_DEPRECATED virtual VertexElementType getColourVertexElementType(void) const
+        OGRE_DEPRECATED static void convertColourValue(const ColourValue& colour, uint32* pDest)
         {
-            return VET_COLOUR_ABGR;
+            *pDest = colour.getAsBYTE();
         }
+        /// @deprecated assume VET_UBYTE4_NORM
+        OGRE_DEPRECATED static VertexElementType getColourVertexElementType(void) { return VET_UBYTE4_NORM; }
 
         /** Converts a uniform projection matrix to suitable for this render system.
         @remarks
@@ -811,14 +794,6 @@ namespace Ogre
         /** Sets how to rasterise triangles, as points, wireframe or solid polys. */
         virtual void _setPolygonMode(PolygonMode level) = 0;
 
-        /** Turns stencil buffer checking on or off. 
-        @remarks
-        Stencilling (masking off areas of the rendering target based on the stencil 
-        buffer) can be turned on or off using this method. By default, stencilling is
-        disabled.
-        */
-        virtual void setStencilCheckEnabled(bool enabled) = 0;
-
         /** This method allows you to set all the stencil buffer parameters in one call.
 
         Unlike other render states, stencilling is left for the application to turn
@@ -828,27 +803,18 @@ namespace Ogre
         or separate render queue groups and register a RenderQueueListener to get notifications
         between batches.
 
-        @see StencilState
         @see RenderQueue
         */
-        virtual void setStencilBufferParams(CompareFunction func = CMPF_ALWAYS_PASS, 
-            uint32 refValue = 0, uint32 compareMask = 0xFFFFFFFF, uint32 writeMask = 0xFFFFFFFF, 
-            StencilOperation stencilFailOp = SOP_KEEP, 
-            StencilOperation depthFailOp = SOP_KEEP,
-            StencilOperation passOp = SOP_KEEP, 
-            bool twoSidedOperation = false,
-            bool readBackAsTexture = false) = 0;
+        virtual void setStencilState(const StencilState& state) = 0;
 
-        /// @overload
-        void setStencilState(const StencilState& state)
-        {
-            setStencilCheckEnabled(state.enabled);
-            if (!state.enabled)
-                return;
-            setStencilBufferParams(state.compareOp, state.referenceValue, state.compareMask,
-                                   state.writeMask, state.stencilFailOp, state.depthFailOp,
-                                   state.depthStencilPassOp, state.twoSidedOperation);
-        }
+        /// @deprecated use setStencilState
+        void setStencilCheckEnabled(bool enabled);
+        /// @deprecated use setStencilState
+        void setStencilBufferParams(CompareFunction func = CMPF_ALWAYS_PASS, uint32 refValue = 0,
+                                    uint32 compareMask = 0xFFFFFFFF, uint32 writeMask = 0xFFFFFFFF,
+                                    StencilOperation stencilFailOp = SOP_KEEP,
+                                    StencilOperation depthFailOp = SOP_KEEP,
+                                    StencilOperation passOp = SOP_KEEP, bool twoSidedOperation = false);
 
         /** Sets whether or not normals are to be automatically normalised.
         @remarks
@@ -912,8 +878,6 @@ namespace Ogre
         virtual void bindGpuProgramParameters(GpuProgramType gptype, 
             const GpuProgramParametersPtr& params, uint16 variabilityMask) = 0;
 
-        /// @deprecated do not use
-        OGRE_DEPRECATED virtual void bindGpuProgramPassIterationParameters(GpuProgramType gptype) {}
         /** Unbinds GpuPrograms of a given GpuProgramType.
         @remarks
         This returns the pipeline to fixed-function processing for this type.
@@ -968,8 +932,8 @@ namespace Ogre
         */
         virtual void setScissorTest(bool enabled, const Rect& rect = Rect()) = 0;
         /// @deprecated
-        OGRE_DEPRECATED void setScissorTest(bool enabled, size_t left, size_t top = 0,
-                                            size_t right = 800, size_t bottom = 600)
+        OGRE_DEPRECATED void setScissorTest(bool enabled, uint32 left, uint32 top = 0,
+                                            uint32 right = 800, uint32 bottom = 600)
         {
             setScissorTest(enabled, Rect(left, top, right, bottom));
         }
@@ -981,9 +945,8 @@ namespace Ogre
         @param depth The value to initialise the depth buffer with, if enabled
         @param stencil The value to initialise the stencil buffer with, if enabled.
         */
-        virtual void clearFrameBuffer(unsigned int buffers, 
-            const ColourValue& colour = ColourValue::Black, 
-            Real depth = 1.0f, unsigned short stencil = 0) = 0;
+        virtual void clearFrameBuffer(uint32 buffers, const ColourValue& colour = ColourValue::Black,
+                                      float depth = 1.0f, uint16 stencil = 0) = 0;
         /** Returns the horizontal texel offset value required for mapping 
         texel origins to pixel origins in this rendersystem.
         @remarks
@@ -1306,8 +1269,10 @@ namespace Ogre
         GpuProgramParametersSharedPtr mFixedFunctionParams;
 
         void initFixedFunctionParams();
-        void setFFPLightParams(size_t index, bool enabled);
+        void setFFPLightParams(uint32 index, bool enabled);
         static CompareFunction reverseCompareFunction(CompareFunction func);
+    private:
+        StencilState mStencilState;
     };
     /** @} */
     /** @} */

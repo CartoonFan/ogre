@@ -29,6 +29,7 @@ THE SOFTWARE.
 #define _SceneNode_H__
 
 #include "OgrePrerequisites.h"
+#include "OgreCommon.h"
 
 #include "OgreNode.h"
 #include "OgreAxisAlignedBox.h"
@@ -38,6 +39,8 @@ namespace Ogre {
 
     // forward decl
     struct VisibleObjectsBoundsInfo;
+    template <typename T> class ConstVectorIterator;
+    template <typename T> class VectorIterator;
 
     /** \addtogroup Core
     *  @{
@@ -68,18 +71,8 @@ namespace Ogre {
         /// SceneManager which created this node
         SceneManager* mCreator;
 
-        /// World-Axis aligned bounding box, updated only through _update
-        AxisAlignedBox mWorldAABB;
-
-        void updateFromParentImpl(void) const;
-
-        /** See Node */
-        void setParent(Node* parent);
-
         /// Auto tracking target
         SceneNode* mAutoTrackTarget;
-        /// Pointer to a Wire Bounding Box for this Node
-        std::unique_ptr<WireBoundingBox> mWireBoundingBox;
 
         /** Index in the vector holding this node reference. Used for O(1) removals.
 
@@ -87,6 +80,14 @@ namespace Ogre {
             it manually.
         */
         size_t mGlobalIndex;
+
+        /// World-Axis aligned bounding box, updated only through _update
+        AxisAlignedBox mWorldAABB;
+
+        void updateFromParentImpl(void) const;
+
+        /** See Node */
+        void setParent(Node* parent);
 
         /// Tracking offset for fine tuning
         Vector3 mAutoTrackOffset;
@@ -99,10 +100,9 @@ namespace Ogre {
         bool mYawFixed : 1;
         /// Is this node a current part of the scene graph?
         bool mIsInSceneGraph : 1;
-    protected: // private in 1.13
+    private: // private in 1.13
         /// Flag that determines if the bounding box of the node should be displayed
         bool mShowBoundingBox : 1;
-        bool mHideBoundingBox : 1;
 
         /** Internal method for setting whether the node is in the scene
             graph.
@@ -134,21 +134,17 @@ namespace Ogre {
         virtual void attachObject(MovableObject* obj);
 
         /** Reports the number of objects attached to this node.
-        @deprecated use getAttachedObjects()
         */
-        unsigned short numAttachedObjects(void) const;
+        size_t numAttachedObjects(void) const { return mObjectsByName.size(); }
 
-        /** Retrieves a pointer to an attached object.
-        @remarks Retrieves by index, see alternate version to retrieve by name. The index
-        of an object may change as other objects are added / removed.
-        @deprecated use getAttachedObjects()
+        /** Retrieves a pointer to an attached object by index
+        @note The index of an object may change as other objects are added / removed.
         */
-        MovableObject* getAttachedObject(unsigned short index);
+        MovableObject* getAttachedObject(size_t index) const { return mObjectsByName.at(index); }
 
-        /** Retrieves a pointer to an attached object.
-        @remarks Retrieves by object name, see alternate version to retrieve by index.
+        /** Retrieves a pointer to an attached object by name
         */
-        MovableObject* getAttachedObject(const String& name);
+        MovableObject* getAttachedObject(const String& name) const;
 
         /** Detaches the indexed object from this scene node.
         @remarks
@@ -227,13 +223,9 @@ namespace Ogre {
         const AxisAlignedBox& _getWorldAABB(void) const { return mWorldAABB; }
 
         /// @deprecated use getAttachedObjects()
-        OGRE_DEPRECATED ObjectIterator getAttachedObjectIterator(void) {
-            return ObjectIterator(mObjectsByName.begin(), mObjectsByName.end());
-        }
+        OGRE_DEPRECATED ObjectIterator getAttachedObjectIterator(void);
         /// @deprecated use getAttachedObjects()
-        OGRE_DEPRECATED ConstObjectIterator getAttachedObjectIterator(void) const {
-            return ConstObjectIterator(mObjectsByName.begin(), mObjectsByName.end());
-        }
+        OGRE_DEPRECATED ConstObjectIterator getAttachedObjectIterator(void) const;
 
         /** The MovableObjects attached to this node
          *
@@ -278,17 +270,27 @@ namespace Ogre {
         */
         void removeAndDestroyAllChildren(void);
 
+        /**
+         * Load a scene from a file as children of this node
+         *
+         * The file and any referenced resources will be searched in @ref ResourceGroupManager::getWorldResourceGroupName
+         * Depending on the type of SceneManager you can load different scene file-formats.
+         * @param filename source file containing the scene structure
+         */
+        void loadChildren(const String& filename);
+
+        /**
+         * Save the scene hierarchy starting at this node to file
+         *
+         * @param filename destination file
+         */
+        void saveChildren(const String& filename);
+
         /** Allows the showing of the node's bounding box.
         @remarks
             Use this to show or hide the bounding box of the node.
         */
         void showBoundingBox(bool bShow) { mShowBoundingBox = bShow; }
-
-        /// @deprecated this function will disappear with 1.13
-        OGRE_DEPRECATED void hideBoundingBox(bool bHide) { mHideBoundingBox = bHide; }
-
-        /// @deprecated this function will disappear with 1.13
-        OGRE_DEPRECATED void _addBoundingBoxToQueue(RenderQueue* queue);
 
         /** This allows scene managers to determine if the node's bounding box
             should be added to the rendering queue.
@@ -369,11 +371,11 @@ namespace Ogre {
         direction of the node, usually -Z
         */
         void setDirection(Real x, Real y, Real z,
-            TransformSpace relativeTo = TS_LOCAL, 
+            TransformSpace relativeTo = TS_PARENT,
             const Vector3& localDirectionVector = Vector3::NEGATIVE_UNIT_Z);
 
         /// @overload
-        void setDirection(const Vector3& vec, TransformSpace relativeTo = TS_LOCAL,
+        void setDirection(const Vector3& vec, TransformSpace relativeTo = TS_PARENT,
             const Vector3& localDirectionVector = Vector3::NEGATIVE_UNIT_Z);
         /** Points the local -Z direction of this node at a point in space.
         @param targetPoint A vector specifying the look at point.
@@ -442,13 +444,6 @@ namespace Ogre {
         @param cascade If true, this setting cascades into child nodes too.
         */
         void setDebugDisplayEnabled(bool enabled, bool cascade = true) const;
-
-        /// @deprecated use DefaultDebugDrawer::drawAxes
-        OGRE_DEPRECATED DebugRenderable* getDebugRenderable();
-
-        /// @copydoc Node::getDebugRenderable
-        using Node::getDebugRenderable;
-
     };
     /** @} */
     /** @} */

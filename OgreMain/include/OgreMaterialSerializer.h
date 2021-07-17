@@ -140,7 +140,7 @@ namespace Ogre {
                         }           
         };
 
-    protected:
+    private:
         /** Internal method for saving a program definition which has been
             built up.
         */
@@ -159,10 +159,6 @@ namespace Ogre {
         void writeVertexProgramRef(const Pass* pPass);
         void writeTesselationHullProgramRef(const Pass* pPass);
         void writeTesselationDomainProgramRef(const Pass* pPass);
-        void writeShadowCasterVertexProgramRef(const Pass* pPass);
-        void writeShadowCasterFragmentProgramRef(const Pass* pPass);
-        void writeShadowReceiverVertexProgramRef(const Pass* pPass);
-        void writeShadowReceiverFragmentProgramRef(const Pass* pPass);
         void writeGeometryProgramRef(const Pass* pPass);
         void writeFragmentProgramRef(const Pass* pPass);
         void writeGpuProgramRef(const String& attrib, const GpuProgramPtr& program, const GpuProgramParametersSharedPtr& params);
